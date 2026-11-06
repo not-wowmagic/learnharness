@@ -1,6 +1,8 @@
 # Hosted web version — implementation plan
 
-Status: **Phases 0–1 implemented** (2026-11-06); Phase 2 next.
+Status: **Phases 0–2 implemented** (2026-11-06); Phase 2's Supabase migration
+is pending because the project database was unreachable at implementation time.
+Phase 3 next.
 
 Goal: run LearnHarness as a free, public, multi-user website on a custom domain,
 funded by the operator's own provider key. No payments, no desktop app.
@@ -143,6 +145,43 @@ Enforcement is server-side, not just hidden UI:
   signed-header resolution, forged-signature fallback, cookie reuse/rejection,
   the proxy's first-contact cookie, and the closed file policy.
 
+### Phase 2 — implemented (code complete; DB migration pending)
+
+- **Optional save.** Anonymous workspaces stay the default. Settings → Account
+  sends a Supabase email magic link; the callback exchanges the code (PKCE) or
+  verifies a `token_hash`, then claims the current workspace or switches to the
+  most recent workspace the user already owns.
+- **Cross-device restore.** On a new browser, sign in once and the callback
+  points `lh_ws` at the owned workspace. The Supabase `workspaces` table is the
+  cross-device mapping; learning data never leaves the app server.
+- **Sign out.** `POST /api/auth/signout` clears the Supabase session and
+  expires `lh_ws`; the next navigation mints a fresh anonymous workspace.
+- **Local ownership metadata.** `meta.json` carries `ownerId`, which exempts
+  claimed workspaces from the 30-day anonymous retention sweep.
+- **Safe redirects.** `safeNextPath` rejects `//host` and `/\host` gadgets.
+- **Config gate.** Accounts appear only when `LH_HOSTED=1` and all three
+  Supabase env values exist; otherwise the Account tab explains that accounts
+  are unconfigured.
+- `tests/accounts.test.ts` pins the workspace choice (existing wins, claim
+  current, collision mints a fresh one), redirect safety, local ownership
+  metadata, and the Supabase config gate.
+
+**Required Supabase setup** (manual, once the project database is reachable):
+
+1. Apply `supabase/migrations/20261106000000_hosted_workspaces.sql`.
+2. Auth → URL Configuration: add
+   `http://localhost:3000/auth/callback` and
+   `https://<your-domain>/auth/callback` as redirect URLs.
+3. Auth → Email: enable magic links. Configure custom SMTP for production
+   (the built-in sender is rate-limited).
+4. Set `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and
+   `SUPABASE_SERVICE_ROLE_KEY` on the server. The first two are public and
+   must also be present at build time.
+
+Limit for the first beta: only the most recent owned workspace is restored;
+a multi-workspace switcher is later. A PKCE magic link should be opened in the
+same browser that requested it (or use a custom `token_hash` email template).
+
 1. **Cookie.** `lh_ws` = `<uuid>.<HMAC>` with `LH_WORKSPACE_SECRET`.
    `httpOnly`, `Secure`, `SameSite=Lax`, one year. Invalid or missing values get
    a fresh workspace. The server never trusts a client-supplied user or workspace
@@ -200,8 +239,10 @@ LH_HOSTED_MODEL_CHEAP=...
 LH_HOSTED_MODEL_VISION=...
 LH_DATA_DIR=/data
 
-# optional
-SUPABASE_URL=...
+# optional — accounts (magic link)
+NEXT_PUBLIC_SITE_URL=https://your-domain
+NEXT_PUBLIC_SUPABASE_URL=...
+NEXT_PUBLIC_SUPABASE_ANON_KEY=...
 SUPABASE_SERVICE_ROLE_KEY=...
 NEXT_PUBLIC_TURNSTILE_SITE_KEY=...
 TURNSTILE_SECRET_KEY=...
@@ -243,7 +284,7 @@ UPSTASH_REDIS_REST_TOKEN=...
 - Tests: two workspaces cannot read each other's chats, graph, or jobs;
   restart recovery stays in the right workspace.
 
-### Phase 2 — Accounts (3–4 days)
+### Phase 2 — Accounts (3–4 days) — **implemented (code); migration pending**
 
 - Supabase Auth magic link, callback, claim current workspace.
 - Owned workspace resolution on a new device; sign-out behavior.
@@ -275,6 +316,9 @@ UPSTASH_REDIS_REST_TOKEN=...
   but there is no HA. Acceptable for beta.
 - **Anonymous data loss.** Clearing cookies loses a workspace. The optional
   account is the answer; the UI must warn before the user invests hours.
+- **Auth/database outage.** If Supabase is unreachable during the callback,
+  ownership cannot be recorded; the visitor keeps the local anonymous
+  workspace, but the save does not follow them to another device.
 - **Disk growth.** JSON sessions and image snapshots accumulate. Retention and
   per-workspace caps are not optional.
 - **Upstream divergence.** Keep `main` tracking `amosblomqvist/learnharness`
@@ -282,8 +326,8 @@ UPSTASH_REDIS_REST_TOKEN=...
 
 ## Open setup choices
 
-1. Supabase project for Auth + workspace ownership (recommended, matches
-   Quizify), or self-hosted magic links with Resend + Postgres.
+1. Supabase project for Auth + workspace ownership (implemented; the project
+   database must be reachable to apply the migration).
 2. Enable the demo/browser tool in beta (needs Chrome + SSRF guard), or ship
    without it.
 3. Enable research search in beta (needs a search key + quota), or ship without.

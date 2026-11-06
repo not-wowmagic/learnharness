@@ -53,6 +53,9 @@ interface WorkspaceMeta {
 	id: string;
 	createdAt: string;
 	lastSeenAt: string;
+	/** Auth user id once the workspace is claimed (phase 2). Anonymous
+	 *  workspaces omit it and are eligible for the retention sweep. */
+	ownerId?: string;
 }
 
 const storage = new AsyncLocalStorage<WorkspacePaths>();
@@ -110,7 +113,12 @@ function readMeta(root: string): WorkspaceMeta | null {
 	try {
 		const parsed = JSON.parse(fs.readFileSync(metaPath(root), "utf-8")) as Partial<WorkspaceMeta>;
 		if (typeof parsed.id !== "string" || typeof parsed.createdAt !== "string" || typeof parsed.lastSeenAt !== "string") return null;
-		return { id: parsed.id, createdAt: parsed.createdAt, lastSeenAt: parsed.lastSeenAt };
+		return {
+			id: parsed.id,
+			createdAt: parsed.createdAt,
+			lastSeenAt: parsed.lastSeenAt,
+			...(typeof parsed.ownerId === "string" ? { ownerId: parsed.ownerId } : {}),
+		};
 	} catch {
 		return null;
 	}
@@ -168,6 +176,29 @@ export function touchWorkspace(paths: WorkspacePaths): void {
 	writeFileAtomicSync(metaPath(paths.root), JSON.stringify(meta, null, "\t"));
 }
 
+/** Resolve a specific workspace id, creating its local directory family if
+ *  the account claimed it on another device / after a retention pass. */
+export function ensureWorkspaceById(id: string): WorkspacePaths | null {
+	if (!isWorkspaceId(id)) return null;
+	const paths = workspacePathsFor(path.join(PATHS.workspaces, id), id);
+	ensureWorkspace(paths);
+	return paths;
+}
+
+/** Record (or clear) local ownership metadata. The Supabase `workspaces`
+ *  table is the cross-device source of truth; this keeps retention honest. */
+export function setWorkspaceOwner(id: string, ownerId: string | null): boolean {
+	if (!isWorkspaceId(id)) return false;
+	const root = path.join(PATHS.workspaces, id);
+	if (!fs.existsSync(root)) return false;
+	const now = new Date().toISOString();
+	const meta = readMeta(root) ?? { id, createdAt: now, lastSeenAt: now };
+	if (ownerId) meta.ownerId = ownerId;
+	else delete meta.ownerId;
+	writeFileAtomicSync(metaPath(root), JSON.stringify(meta, null, "\t"));
+	return true;
+}
+
 /** Mint a fresh workspace and its directory family. */
 export function createWorkspace(): WorkspacePaths {
 	const id = randomUUID();
@@ -219,6 +250,7 @@ export function pruneStaleWorkspaces(maxAgeDays = 30): number {
 	let removed = 0;
 	for (const paths of listWorkspaces()) {
 		const meta = readMeta(paths.root);
+		if (meta?.ownerId) continue; // account-owned workspaces are never swept
 		const lastSeen = meta ? Date.parse(meta.lastSeenAt) : fs.statSync(paths.root).mtimeMs;
 		if (!Number.isFinite(lastSeen) || lastSeen >= cutoff) continue;
 		try {

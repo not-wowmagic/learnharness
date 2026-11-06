@@ -32,12 +32,18 @@ export function proxy(request: NextRequest) {
 		);
 	}
 	if (isHostedMode()) {
+		// Sign-out owns its cookie clearing; do not mint a replacement here.
+		if (request.nextUrl.pathname === "/api/auth/signout") {
+			return NextResponse.next();
+		}
 		const workspace = resolveWorkspaceCookie(request.headers.get("cookie"));
 		const requestHeaders = new Headers(request.headers);
 		requestHeaders.set(WORKSPACE_HEADER, workspace.paths.id);
 		requestHeaders.set(WORKSPACE_SIGNATURE_HEADER, workspace.signature);
 		const response = NextResponse.next({ request: { headers: requestHeaders } });
-		if (workspace.fresh) {
+		// The auth callback sets the FINAL (possibly different, owned)
+		// workspace cookie itself; a duplicate Set-Cookie here would race it.
+		if (workspace.fresh && request.nextUrl.pathname !== "/auth/callback") {
 			response.cookies.set({
 				...workspaceCookieOptions(),
 				value: `${workspace.paths.id}.${workspace.signature}`,

@@ -21,6 +21,14 @@ import {
 	type WorkspacePaths,
 } from "../store/workspace.ts";
 
+// The auth callback needs these store operations; app/ may only import the
+// server barrel, so expose them through this server module.
+export {
+	createWorkspace,
+	ensureWorkspaceById,
+	setWorkspaceOwner,
+} from "../store/workspace.ts";
+
 export const WORKSPACE_COOKIE_NAME = "lh_ws";
 export const WORKSPACE_HEADER = "x-lh-workspace";
 export const WORKSPACE_SIGNATURE_HEADER = "x-lh-workspace-sig";

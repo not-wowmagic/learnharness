@@ -39,6 +39,9 @@ export { effectivePromptSegments, allSegmentPaths, readPromptOverride } from "..
 export * from "./keys.ts";
 export * from "./hosted.ts";
 export * from "./workspace-context.ts";
+export * from "./supabase.ts";
+export * from "./supabase-auth.ts";
+export * from "./accounts.ts";
 export * from "./search.ts";
 export { authStore } from "../store/auth.ts";
 export * from "./settings-body.ts";

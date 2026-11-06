@@ -50,6 +50,7 @@ import { KeysSection } from "./keys-section.tsx";
 import { Hint } from "@/components/ui/hint";
 import { AppearanceSection, GraphSection } from "./appearance-section.tsx";
 import { KeyboardSection } from "./keyboard-section.tsx";
+import { AccountSection } from "./account-section.tsx";
 import { ChatGPTUIProvider } from "./chatgpt-connection.tsx";
 import { NativeSubscriptionUIProvider } from "./subscription-connections.tsx";
 import { HOSTED } from "@/lib/hosted";
@@ -64,14 +65,16 @@ const SECTIONS = [
 	{ id: "graph", label: "Graph" },
 	{ id: "keyboard", label: "Keyboard", hint: "Stored on this device" },
 	{ id: "general", label: "General" },
+	{ id: "account", label: "Account" },
 ] as const;
 type SectionId = (typeof SECTIONS)[number]["id"];
 
-/** Hosted mode has no visitor-managed provider keys: the operator supplies
- *  them. Hiding the section is cosmetic — the routes refuse writes too. */
+/** Hosted mode has no visitor-managed provider keys (the operator supplies
+ *  them) and adds the optional account surface. Hiding a section is
+ *  cosmetic — the routes enforce the same rules. */
 const VISIBLE_SECTIONS = HOSTED
 	? SECTIONS.filter((section) => section.id !== "keys")
-	: SECTIONS;
+	: SECTIONS.filter((section) => section.id !== "account");
 
 /** `open(section?, row?)` — the optional ROW deep-links into the Keys
  *  section with that row unfolded (zero-keys wave: the dictation error's
@@ -431,6 +434,11 @@ export function SettingsDialogBody({
 											void write("graph", next)
 										}
 									/>
+								</SettingsSection>
+							)}
+							{active === "account" && (
+								<SettingsSection title="Account" testid="section-account">
+									<AccountSection />
 								</SettingsSection>
 							)}
 							{active === "keyboard" && (

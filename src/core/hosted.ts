@@ -38,6 +38,15 @@ export function hostedEnabled(
 	return env.LH_HOSTED === "1";
 }
 
+/** Post-auth redirect target: same-origin paths only. `//evil.example` and
+ *  scheme-relative forms are open-redirect gadgets, so they collapse to "/". */
+export function safeNextPath(raw: string | null | undefined): string {
+	if (!raw || !raw.startsWith("/") || raw.startsWith("//") || raw.startsWith("/\\")) {
+		return "/";
+	}
+	return raw;
+}
+
 /** Parse `provider:model-id` (split on the FIRST colon — model ids may
  *  contain further colons, e.g. Ollama tags). Malformed values are inert:
  *  a typo must never silently point the hosted app at a different model. */
