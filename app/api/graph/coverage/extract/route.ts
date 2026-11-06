@@ -10,11 +10,11 @@
  * flight (the dock is the source of truth for that); failures are logged
  * by the pipeline and leave coverage untouched — the button stays honest.
  */
-import { extraction, extractionStatuses } from "@/src/server";
+import { extraction, extractionStatuses, withWorkspace } from "@/src/server";
 
 export const dynamic = "force-dynamic";
 
-export async function POST(request: Request) {
+async function POSTHandler(request: Request) {
 	let body: unknown;
 	try {
 		body = await request.json();
@@ -35,3 +35,5 @@ export async function POST(request: Request) {
 	});
 	return Response.json({ started: true }, { status: 202 });
 }
+
+export const POST = withWorkspace(POSTHandler);

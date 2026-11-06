@@ -6,6 +6,7 @@ import {
 	parseSettingsBody,
 	stores,
 	validateChatSettings,
+	withWorkspace,
 } from "@/src/server";
 import type { ChatSettings } from "@/src/core";
 
@@ -25,7 +26,7 @@ import type { ChatSettings } from "@/src/core";
  * The body parsing itself is shared with the draft route
  * (src/server/settings-body.ts, default-settings wave 2026-09-18).
  */
-export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
+async function PUTHandler(req: Request, { params }: { params: Promise<{ id: string }> }) {
 	// Every field this route accepts is a model/thinking override. Hosted
 	// mode pins both, so the whole write is refused rather than partially
 	// ignored.
@@ -56,3 +57,5 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 	stores.chatStore.saveSettings(id, settings);
 	return Response.json({ settings });
 }
+
+export const PUT = withWorkspace(PUTHandler);

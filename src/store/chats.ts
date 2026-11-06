@@ -10,8 +10,8 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { createHash } from "node:crypto";
-import { PATHS } from "../../config.ts";
 import { emit } from "../core/events.ts";
+import { currentWorkspace } from "./workspace.ts";
 import type { ChatStore } from "../core/ports.ts";
 import type { ChatRecord, ChatSettings, ChatSummary, ExtractionRunUsage, ImageSnapshot, PlanTree, TurnUsage } from "../core/contracts.ts";
 import { CURRENT_CHAT_VERSION } from "../core/contracts.ts";
@@ -22,7 +22,7 @@ import { removeLeftoverTemps, writeFileAtomicSync } from "./atomic-write.ts";
 
 function chatFile(id: string): string {
 	if (!/^[A-Za-z0-9_-]+$/.test(id)) throw new Error(`Invalid chat id: ${id}`);
-	return path.join(PATHS.chats, `${id}.json`);
+	return path.join(currentWorkspace().chats, `${id}.json`);
 }
 
 /** THE SILENCE LAW (push S6, 2026-10-02): chats-changed announces ONLY
@@ -46,7 +46,7 @@ function createChat(title: string, kind?: "practice"): ChatRecord {
 		// reads as teach — pre-practice records never migrate).
 		...(kind === "practice" ? { kind: "practice" as const } : {}),
 	};
-	fs.mkdirSync(PATHS.chats, { recursive: true });
+	fs.mkdirSync(currentWorkspace().chats, { recursive: true });
 	writeChat(record);
 	emit("chats-changed", {});
 	return { ...record, version: CURRENT_CHAT_VERSION }; // the in-memory twin of what landed on disk
@@ -80,9 +80,9 @@ function getChat(id: string): ChatRecord | null {
 
 function listChats(): ChatSummary[] {
 	try {
-		fs.mkdirSync(PATHS.chats, { recursive: true });
+		fs.mkdirSync(currentWorkspace().chats, { recursive: true });
 		return fs
-			.readdirSync(PATHS.chats)
+			.readdirSync(currentWorkspace().chats)
 			.filter((f) => f.endsWith(".json"))
 			.map((f) => getChat(f.slice(0, -5)))
 			.filter((r): r is ChatRecord => r !== null)

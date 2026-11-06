@@ -6,10 +6,12 @@
  * server seam (events-stream.ts); the framework route stays a thin
  * wrapper (the import law; tests drive the seam directly).
  */
-import { eventsResponse } from "@/src/server";
+import { eventsResponse, withWorkspace } from "@/src/server";
 
 export const dynamic = "force-dynamic";
 
-export function GET(): Response {
+function GETHandler(): Response {
 	return eventsResponse();
 }
+
+export const GET = withWorkspace(GETHandler);

@@ -10,10 +10,12 @@
  * Scope (user-decided): the graph pipeline ONLY — teaching turns and
  * sub-agent jobs have their own cost channels elsewhere.
  */
-import { graphCosts } from "@/src/server";
+import { graphCosts, withWorkspace } from "@/src/server";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+async function GETHandler() {
 	return Response.json(graphCosts());
 }
+
+export const GET = withWorkspace(GETHandler);

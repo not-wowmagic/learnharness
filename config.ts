@@ -23,6 +23,8 @@ export const PATHS = {
 	/** Teacher system prompt — the agent's instructions (src/agent/). */
 	teacherPrompt: path.join(ROOT, "src", "agent", "system-prompt.md"),
 	data: DATA_ROOT,
+	/** Hosted workspaces: one self-contained data root per visitor. */
+	workspaces: path.join(DATA_ROOT, "workspaces"),
 	/** Chat sessions (AI SDK UIMessage transcripts, one JSON file per chat). */
 	chats: path.join(DATA_ROOT, "chats"),
 	graph: path.join(DATA_ROOT, "graph"),

@@ -19,11 +19,11 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { SETTINGS_FILE } from "../../config.ts";
 import {
 	sanitizeUserSettings,
 	type UserSettings,
 } from "../core/settings.ts";
+import { currentWorkspace } from "./workspace.ts";
 import type { SettingsStore } from "../core/ports.ts";
 import { writeFileAtomicSync } from "./atomic-write.ts";
 import { parseFileAccessSettings, type FileAccessSettingsResult } from "../core/file-access.ts";
@@ -51,7 +51,8 @@ function fileAccessFromRecord(raw: unknown): FileAccessSettingsResult {
 /** ENOENT from a dangling settings/ancestor symlink is NOT first boot.
  * Find the nearest existing entry and verify its directory is usable. */
 function settingsAreAbsent(): boolean {
-	let candidate = SETTINGS_FILE;
+	const settingsFile = currentWorkspace().settings;
+	let candidate = settingsFile;
 	for (;;) {
 		try { fs.lstatSync(/* turbopackIgnore: true */ candidate); }
 		catch (error) {
@@ -61,7 +62,7 @@ function settingsAreAbsent(): boolean {
 			candidate = parent;
 			continue;
 		}
-		if (candidate === SETTINGS_FILE) return false;
+		if (candidate === settingsFile) return false;
 		try {
 			if (!fs.statSync(/* turbopackIgnore: true */ candidate).isDirectory()) return false;
 			fs.accessSync(/* turbopackIgnore: true */ candidate, fs.constants.R_OK | fs.constants.X_OK);
@@ -72,7 +73,7 @@ function settingsAreAbsent(): boolean {
 
 export function readFileAccessSettings(): FileAccessSettingsResult {
 	let raw: string;
-	try { raw = fs.readFileSync(SETTINGS_FILE, "utf-8"); }
+	try { raw = fs.readFileSync(currentWorkspace().settings, "utf-8"); }
 	catch (error) {
 		return (error as NodeJS.ErrnoException).code === "ENOENT" && settingsAreAbsent()
 			? { ok: true, settings: { restricted: false, folders: [] } }
@@ -87,7 +88,7 @@ export function readFileAccessSettings(): FileAccessSettingsResult {
 export function readSettings(): UserSettings | null {
 	let raw: string;
 	try {
-		raw = fs.readFileSync(SETTINGS_FILE, "utf-8");
+		raw = fs.readFileSync(currentWorkspace().settings, "utf-8");
 	} catch {
 		// No settings.json yet — first boot. In hosted mode the operator's
 		// pinned slots still resolve (no workspace should 503 on day one).
@@ -127,8 +128,9 @@ export function writeSettings(raw: unknown): UserSettings {
 		// the write explicitly supplies a valid file-access preference.
 		settings.agent = { ...settings.agent, fileAccess: { restricted: true, folders: [] } };
 	}
-	fs.mkdirSync(path.dirname(SETTINGS_FILE), { recursive: true });
-	writeFileAtomicSync(SETTINGS_FILE, JSON.stringify(settings, null, "\t"), { allowInPlaceFallback: true });
+	const settingsFile = currentWorkspace().settings;
+	fs.mkdirSync(path.dirname(settingsFile), { recursive: true });
+	writeFileAtomicSync(settingsFile, JSON.stringify(settings, null, "\t"), { allowInPlaceFallback: true });
 	return settings;
 }
 

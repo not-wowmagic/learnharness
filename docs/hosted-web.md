@@ -1,6 +1,6 @@
 # Hosted web version — implementation plan
 
-Status: **Phase 0 implemented** (2026-11-06); Phase 1 next.
+Status: **Phases 0–1 implemented** (2026-11-06); Phase 2 next.
 
 Goal: run LearnHarness as a free, public, multi-user website on a custom domain,
 funded by the operator's own provider key. No payments, no desktop app.
@@ -111,7 +111,34 @@ Enforcement is server-side, not just hidden UI:
 
 ## Workspace isolation
 
-1. **Cookie.** `lh_ws` = `<uuid>.<HMAC>` with `LH_COOKIE_SECRET`.
+### Phase 1 — implemented
+
+- `src/store/workspace.ts` owns the path family, the `AsyncLocalStorage`
+  context, signed-id validation, creation, last-seen metadata, and the
+  30-day anonymous-workspace sweep.
+- Every storage adapter (`chats`, `graph`, `graph-format`, `jobs`, `settings`,
+  `prompt-overrides`, `render-settings`, `source-organization`) resolves its
+  paths through `currentWorkspace()` per operation, so no path is captured at
+  module load.
+- `proxy.ts` now runs on pages as well as APIs, mints the signed `lh_ws`
+  cookie on first contact, and forwards the id + HMAC as private request
+  headers. `withWorkspace` and `withWorkspacePage` re-verify the signature
+  before entering the context; a forged or missing signature gets a fresh
+  workspace, never the operator's data root.
+- API routes are wrapped individually; the three server components that read
+  settings/chat data (`/`, `/chat/new`, `/chat/[id]`) use
+  `withWorkspacePage`.
+- Hosted learner file tools are closed: `fileAccessPolicy()` returns
+  `{ restricted: true, folders: [] }`, so no visitor can read the server's
+  filesystem or another workspace's records.
+- Job recovery is per workspace (`lastSweepAt` is keyed by workspace id).
+- `LH_WORKSPACE_SECRET` (32+ chars) is required in hosted production; a
+  fixed dev secret is used only outside production.
+- `tests/workspace.test.ts` pins path isolation, chat/job/settings isolation,
+  signed-header resolution, forged-signature fallback, cookie reuse/rejection,
+  the proxy's first-contact cookie, and the closed file policy.
+
+1. **Cookie.** `lh_ws` = `<uuid>.<HMAC>` with `LH_WORKSPACE_SECRET`.
    `httpOnly`, `Secure`, `SameSite=Lax`, one year. Invalid or missing values get
    a fresh workspace. The server never trusts a client-supplied user or workspace
    id outside the cookie.
@@ -161,7 +188,7 @@ The operator key is public money. All of these ship before the link is shared.
 # required
 LH_HOSTED=1
 NEXT_PUBLIC_LH_HOSTED=1
-LH_COOKIE_SECRET=<32+ random bytes>
+LH_WORKSPACE_SECRET=<32+ random bytes>
 OPENROUTER_API_KEY=<operator key>
 LH_HOSTED_MODEL_STRONG=...
 LH_HOSTED_MODEL_CHEAP=...
@@ -178,8 +205,11 @@ UPSTASH_REDIS_REST_TOKEN=...
 ```
 
 - Multi-stage Dockerfile on `node:24-bookworm-slim`; `npm ci`,
-  `NEXT_PUBLIC_LH_HOSTED=1 npm run build`, `npm start`. Add Chromium only if
-  the demo tool is enabled.
+  `NEXT_PUBLIC_LH_HOSTED=1 npm run build`. The repo uses
+  `output: "standalone"`, and Next 16 refuses `next start` in that mode, so
+  the hosted image runs `node .next/standalone/server.js` after the usual
+  `public/` and `.next/static/` copies (the same layout the desktop build
+  already curates). Add Chromium only if the demo tool is enabled.
 - One Fly.io machine (or Railway/Render/VPS) with a volume mounted at `/data`.
   Do not scale above one instance: jobs, locks, and SSE coordination are
   process-local.
@@ -197,12 +227,14 @@ UPSTASH_REDIS_REST_TOKEN=...
 - Hide model/provider/attachment/dictation UI in hosted mode.
 - Tests: blocked routes return 403; pinned models cannot be overridden.
 
-### Phase 1 — Workspaces (4–6 days)
+### Phase 1 — Workspaces (4–6 days) — **implemented**
 
 - Add `src/store/workspace.ts` and per-call path resolution in every adapter.
 - Add signed cookie handling and `withWorkspace` around API routes.
 - Persist `workspaceId` on jobs; workspace-aware restart recovery.
-- First-run settings seed; retention and disk-limit task.
+- First-boot model resolution comes from the hosted overlay (no seed file
+  needed); retention sweep for idle anonymous workspaces. The per-workspace
+  disk cap moves to Phase 3 with the other abuse controls.
 - Tests: two workspaces cannot read each other's chats, graph, or jobs;
   restart recovery stays in the right workspace.
 

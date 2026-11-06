@@ -43,6 +43,7 @@ import {
 	readSettingsRecord,
 	validateChatSettings,
 	validateModelsSettings,
+	withWorkspace,
 	writeSettingsRecord,
 	type SettingsBodyResult,
 } from "@/src/server";
@@ -52,7 +53,7 @@ export const dynamic = "force-dynamic";
 /** One parser, result type erased to the common envelope. */
 type AnySectionParser = (body: unknown) => SettingsBodyResult<unknown>;
 
-export async function PUT(request: Request, ctx: { params: Promise<{ section: string }> }) {
+async function PUTHandler(request: Request, ctx: { params: Promise<{ section: string }> }) {
 	const { section } = await ctx.params;
 	// Hosted mode pins models server-side. Refuse the two model-bearing
 	// sections outright: hiding the picker is not an authorization boundary.
@@ -142,3 +143,5 @@ export async function PUT(request: Request, ctx: { params: Promise<{ section: st
 	const fileAccessError = fileAccessConfigurationError();
 	return Response.json({ settings: stored, ...(fileAccessError ? { fileAccessError } : {}) });
 }
+
+export const PUT = withWorkspace(PUTHandler);

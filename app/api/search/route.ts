@@ -9,10 +9,12 @@
  * pinned-engine-key-missing case).
  */
 
-import { searchStatus } from "@/src/server";
+import { searchStatus, withWorkspace } from "@/src/server";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+async function GETHandler() {
 	return Response.json(searchStatus());
 }
+
+export const GET = withWorkspace(GETHandler);

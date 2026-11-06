@@ -70,6 +70,7 @@ import { hasUnresolvedQuestion, endsInDismissal, endsInQuestionRecovery, type Lh
 import { fireJobAbort, isJobLive } from "../agent/subagents/aborts.ts";
 import { stores, effectiveSettings } from "./stores.ts";
 import { hostedConversationSettings } from "./hosted.ts";
+import { currentWorkspace } from "../store/workspace.ts";
 import { resolveConversationSpec } from "../core/settings-resolution.ts";
 import { connectionBackgroundAllowed, isSubscriptionProvider, onSubscriptionChange } from "../agent/subscription-connections.ts";
 import { isTurnRunning } from "./turn-liveness.ts";
@@ -122,8 +123,9 @@ interface WakeState {
 	liveAgents: Map<string, Agent>;
 	/** Chats whose pump loop is currently active (serialization per chat). */
 	pumping: Set<string>;
-	/** Throttle bookkeeping for the stale-job sweep. */
-	lastSweepAt: number;
+	/** Throttle bookkeeping for the stale-job sweep, per workspace (a
+	 *  workspace's poll must not be starved by another workspace's sweep). */
+	lastSweepAt: Map<string, number>;
 	stopConnectionWatch?: () => void;
 	automaticDeferred: WeakSet<Agent>;
 }
@@ -134,7 +136,7 @@ interface LhWakeGlobal {
 
 function state(): WakeState {
 	const g = globalThis as typeof globalThis & LhWakeGlobal;
-	return (g.__lhWakePipeline ??= { queues: new Map(), liveAgents: new Map(), userSteers: new Map(), pumping: new Set(), lastSweepAt: 0, automaticDeferred: new WeakSet() });
+	return (g.__lhWakePipeline ??= { queues: new Map(), liveAgents: new Map(), userSteers: new Map(), pumping: new Set(), lastSweepAt: new Map(), automaticDeferred: new WeakSet() });
 }
 
 /** chat-handler wires this at module init: its adapter around handleChatRequest. */
@@ -737,8 +739,15 @@ const SWEEP_THROTTLE_MS = 30_000;
 export function recoverStaleJobs(): void {
 	const s = state();
 	const now = Date.now();
-	if (now - s.lastSweepAt < SWEEP_THROTTLE_MS) return;
-	s.lastSweepAt = now;
+	const workspaceId = currentWorkspace().id;
+	// HMR / older module instances may leave the pre-workspace numeric
+	// throttle on globalThis. Read it once, then migrate to the per-id map.
+	const sweepState = s.lastSweepAt as unknown;
+	const sweepMap = sweepState instanceof Map ? (sweepState as Map<string, number>) : null;
+	const lastSweepAt = sweepMap ? (sweepMap.get(workspaceId) ?? 0) : typeof sweepState === "number" ? sweepState : 0;
+	if (now - lastSweepAt < SWEEP_THROTTLE_MS) return;
+	if (sweepMap) sweepMap.set(workspaceId, now);
+	else s.lastSweepAt = new Map([[workspaceId, now]]);
 	try {
 		for (const chat of stores.chatStore.listChats()) {
 			for (const job of stores.jobStore.listJobs(chat.id)) {

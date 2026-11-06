@@ -20,14 +20,14 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { GRAPH_FORMAT_FILE } from "../../config.ts";
 import { CURRENT_GRAPH_FORMAT_VERSION } from "../core/contracts/graph.ts";
 import { writeFileAtomicSync } from "./atomic-write.ts";
+import { currentWorkspace } from "./workspace.ts";
 
 function stampedVersion(): number | null {
 	let raw: string;
 	try {
-		raw = fs.readFileSync(GRAPH_FORMAT_FILE, "utf-8");
+		raw = fs.readFileSync(currentWorkspace().graphFormat, "utf-8");
 	} catch {
 		return null; // no sidecar — the lazy-v1 pre-stamp world
 	}
@@ -56,6 +56,7 @@ export function assertGraphFormat(): void {
  *  (lazy); afterwards a no-op existence-wise. Callers keep their own mkdir. */
 export function ensureGraphFormat(): void {
 	if (stampedVersion() !== null) return;
-	fs.mkdirSync(path.dirname(GRAPH_FORMAT_FILE), { recursive: true });
-	writeFileAtomicSync(GRAPH_FORMAT_FILE, JSON.stringify({ version: CURRENT_GRAPH_FORMAT_VERSION }, null, "\t") + "\n", { allowInPlaceFallback: true });
+	const file = currentWorkspace().graphFormat;
+	fs.mkdirSync(path.dirname(file), { recursive: true });
+	writeFileAtomicSync(file, JSON.stringify({ version: CURRENT_GRAPH_FORMAT_VERSION }, null, "\t") + "\n", { allowInPlaceFallback: true });
 }

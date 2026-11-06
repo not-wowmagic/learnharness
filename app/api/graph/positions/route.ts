@@ -9,11 +9,11 @@
  *   PUT → 200 {positions: {...}} with whatever survived sanitizing
  *         (empty object = nothing written).
  */
-import { commitPositions } from "@/src/server";
+import { commitPositions, withWorkspace } from "@/src/server";
 
 export const dynamic = "force-dynamic";
 
-export async function PUT(request: Request) {
+async function PUTHandler(request: Request) {
 	let body: unknown;
 	try {
 		body = await request.json();
@@ -22,3 +22,5 @@ export async function PUT(request: Request) {
 	}
 	return Response.json({ positions: commitPositions(body) });
 }
+
+export const PUT = withWorkspace(PUTHandler);
