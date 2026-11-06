@@ -12,7 +12,13 @@ import { sourceOrganizationStore } from "../store/source-organization.ts";
 import { jobStore } from "../store/jobs.ts";
 import { settingsStore } from "../store/settings.ts";
 import { resolveSettings, type EffectiveSettings } from "../core/settings-resolution.ts";
+import { setEventWorkspaceProvider } from "../core/events.ts";
+import { currentWorkspace } from "../store/workspace.ts";
 import { syncCustomProvider } from "./custom-provider.ts";
+
+// Every event carries the emitting workspace; the SSE route drops other
+// workspaces' notifications before they reach a visitor.
+setEventWorkspaceProvider(() => currentWorkspace().id);
 /** The wired adapters. Satisfies core/graph.ts's GraphDeps structurally. */
 export const stores = {
 	chatStore,

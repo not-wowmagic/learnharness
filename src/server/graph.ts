@@ -9,7 +9,7 @@ import {
 	deleteNodeTraces,
 	type NodeDeletionStats,
 } from "../core/graph-deletion.ts";
-import { extractionStatuses } from "../agent/subagents/extraction.ts";
+import { workspaceExtractionStatuses } from "./extraction-status.ts";
 import { stores } from "./stores.ts";
 import { callCost } from "./pricing.ts";
 
@@ -104,7 +104,7 @@ export type NodeDeleteOutcome =
  *     existingIds guard) — no dangling edges, no resurrection.
  */
 export function deleteGraphNode(nodeId: string): NodeDeleteOutcome {
-	if (extractionStatuses().length > 0) {
+	if (workspaceExtractionStatuses().length > 0) {
 		return {
 			ok: false,
 			status: 409,

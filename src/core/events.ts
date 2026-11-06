@@ -78,6 +78,16 @@ export type ServerEvent<K extends ServerEventType = ServerEventType> = {
 
 export type ServerEventListener = (event: ServerEvent) => void;
 
+/** Hosted mode tags every emission with the emitting workspace so an SSE
+ *  connection only receives its own notifications. Core stays store-free:
+ *  the server composition root installs the provider. */
+let workspaceTagProvider: (() => string | undefined) | undefined;
+export function setEventWorkspaceProvider(
+	provider: (() => string | undefined) | undefined,
+): void {
+	workspaceTagProvider = provider;
+}
+
 interface LhEventsGlobal {
 	__lhEventBus?: Set<ServerEventListener>;
 }
@@ -105,9 +115,10 @@ export function subscribe(listener: ServerEventListener): () => void {
 export function emit<K extends ServerEventType>(type: K, payload: ServerEvents[K]): void {
 	// Snapshot: a listener that unsubscribes (or subscribes) mid-emit must
 	// not mutate the set under iteration.
+	const workspaceId = workspaceTagProvider?.();
 	for (const listener of [...listeners()]) {
 		try {
-			listener({ type, ...payload } as ServerEvent);
+			listener({ type, ...payload, ...(workspaceId ? { __workspaceId: workspaceId } : {}) } as ServerEvent);
 		} catch (err) {
 			console.error(`[events] listener failed on ${type}:`, err);
 		}

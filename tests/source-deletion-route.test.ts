@@ -140,7 +140,9 @@ it("refuses contribution deletion during extraction without cancelling it; metad
 	const g = globalThis as { __lhExtractionRuns?: unknown }, saved = g.__lhExtractionRuns;
 	const controller = new AbortController();
 	try {
-		g.__lhExtractionRuns = { running: new Map([["other", { chatId: "other", kind: "notes", phase: "extracting", startedAt: 1, usage: {}, controller }]]), inFlight: new Set(), lastStartedAt: 0 };
+		// Hosted isolation filters the registry by workspace ownership: name
+		// the real imported source so the run is this workspace's.
+		g.__lhExtractionRuns = { running: new Map([["a", { chatId: "a", kind: "notes", phase: "extracting", startedAt: 1, usage: {}, controller }]]), inFlight: new Set(), lastStartedAt: 0 };
 		const response = await remove(["a"]); assert.equal(response.status, 409); assert.equal((await response.json()).code, "extraction_running");
 		assert.equal(controller.signal.aborted, false); assert.equal(stores.graphStore.readSources().length, 1);
 		assert.equal((await remove([], ["empty"])).status, 200);

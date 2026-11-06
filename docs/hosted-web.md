@@ -132,6 +132,11 @@ Enforcement is server-side, not just hidden UI:
   `{ restricted: true, folders: [] }`, so no visitor can read the server's
   filesystem or another workspace's records.
 - Job recovery is per workspace (`lastSweepAt` is keyed by workspace id).
+- Bus events carry the emitting workspace and `/api/events` drops other
+  workspaces' frames; the activity dock, `/api/graph/status`, and the
+  extraction-deletion gates filter the process-global extraction registry by
+  workspace ownership. `/api/activity/abort` verifies the target chat/source
+  belongs to the caller.
 - `LH_WORKSPACE_SECRET` (32+ chars) is required in hosted production; a
   fixed dev secret is used only outside production.
 - `tests/workspace.test.ts` pins path isolation, chat/job/settings isolation,

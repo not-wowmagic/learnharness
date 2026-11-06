@@ -950,9 +950,13 @@ describe("single-node deletion (deleteNodeTraces + deleteGraphNode, node interlu
 		// to pin the gate without staging a real run.
 		const g = globalThis as { __lhExtractionRuns?: unknown };
 		const realRuns = g.__lhExtractionRuns;
+		// Hosted isolation filters the global registry by workspace ownership,
+		// so the fake run must name a REAL chat record (a fake id is another
+		// tenant's business and is correctly ignored).
+		const busy = chatStore.createChat("Extraction gate fixture");
 		g.__lhExtractionRuns = {
 			running: new Map([
-				["chat_busy", { chatId: "chat_busy", kind: "chat", phase: "extracting", startedAt: 1, usage: {}, controller: new AbortController() }],
+				[busy.id, { chatId: busy.id, kind: "chat", phase: "extracting", startedAt: 1, usage: {}, controller: new AbortController() }],
 			]),
 			inFlight: new Set(),
 			lastStartedAt: 0,
@@ -966,6 +970,7 @@ describe("single-node deletion (deleteNodeTraces + deleteGraphNode, node interlu
 			});
 		} finally {
 			g.__lhExtractionRuns = realRuns;
+			chatStore.deleteChat(busy.id);
 		}
 
 		// Success — the node dies, the version stamp moves.

@@ -143,6 +143,20 @@ describe("workspace request context", () => {
 		assert.notEqual(tampered.paths.id, fresh.paths.id);
 	});
 
+	it("tags events with the emitting workspace", async () => {
+		const { emit, subscribe } = await import("../src/core/events.ts");
+		const ws = workspace.createWorkspace();
+		const seen: Array<{ __workspaceId?: string }> = [];
+		const unsubscribe = subscribe((event) => seen.push(event as { __workspaceId?: string }));
+		try {
+			workspace.runInWorkspace(ws, () => emit("chats-changed", {}));
+		} finally {
+			unsubscribe();
+		}
+		assert.equal(seen.length, 1);
+		assert.equal(seen[0]?.__workspaceId, ws.id);
+	});
+
 	it("closes learner file tools in hosted mode", async () => {
 		const { fileAccessPolicy } = await import("../src/server/file-access.ts");
 		assert.deepEqual(fileAccessPolicy(), { restricted: true, folders: [] });

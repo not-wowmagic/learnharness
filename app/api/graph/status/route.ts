@@ -7,12 +7,12 @@
  * per-chunk jobs, owner 2026-09-28). Titles joined from the chat store;
  * a missing chat record still reports the run.
  */
-import { chatStore, extractionStatuses, withWorkspace } from "@/src/server";
+import { chatStore, withWorkspace, workspaceExtractionStatuses } from "@/src/server";
 
 export const dynamic = "force-dynamic";
 
 async function GETHandler() {
-	const runs = extractionStatuses().map((run) => ({
+	const runs = workspaceExtractionStatuses().map((run) => ({
 		// Unique row id (the registry job key: source id, or "src#i" for
 		// chunk jobs) — one source's rows share chatId, and React keys on
 		// it would collide. chatId stays the SOURCE id: reveal/cost

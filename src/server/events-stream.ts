@@ -25,6 +25,7 @@
  * ui-stream subscribe() pattern.
  */
 import { subscribe, type ServerEvent } from "../core/events.ts";
+import { currentWorkspace } from "../store/workspace.ts";
 
 /** One window's subscription as an SSE Response. */
 export function eventsResponse(): Response {
@@ -57,8 +58,14 @@ export function eventsResponse(): Response {
 			// Attach FIRST, synchronously: no event can fall between
 			// construction and subscription (single-threaded — the same
 			// attach-then-replay law as ui-stream's subscribe()).
+			const workspaceId = currentWorkspace().id;
 			unsubscribe = subscribe((event: ServerEvent) => {
-				const { type, ...payload } = event;
+				const tagged = event as ServerEvent & { __workspaceId?: string };
+				// Hosted isolation: another workspace's poke is not ours to
+				// deliver (the refetch would be scoped, but the ids/timing
+				// are still not this visitor's business).
+				if (tagged.__workspaceId && tagged.__workspaceId !== workspaceId) return;
+				const { type, __workspaceId: _workspace, ...payload } = tagged;
 				frame(`event: ${type}\ndata: ${JSON.stringify(payload)}\n\n`);
 			});
 			heartbeat = setInterval(() => frame(": ping\n\n"), 25_000);

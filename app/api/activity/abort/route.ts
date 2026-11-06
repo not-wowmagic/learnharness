@@ -17,7 +17,7 @@
  * Extraction abort is idempotent by design (aborting with nothing in
  * flight is success — the blob is gone either way) -> 200.
  */
-import { abortExtraction, abortJob, abortTurn, withWorkspace } from "@/src/server";
+import { abortExtraction, abortJob, abortTurn, getChat, stores, withWorkspace } from "@/src/server";
 
 async function POSTHandler(req: Request) {
 	let body: unknown;
@@ -43,9 +43,16 @@ async function POSTHandler(req: Request) {
 		return Response.json({ ok: true });
 	}
 	if (kind === "turn") {
+		// Chat ids are random, but ownership is the authorization boundary:
+		// another workspace's live turn is not this visitor's to abort.
+		if (!getChat(id)) return Response.json({ ok: false, reason: "not_found" }, { status: 404 });
 		const outcome = abortTurn(id);
 		if (!outcome.ok) return Response.json({ ok: false, reason: outcome.reason }, { status: 409 });
 		return Response.json({ ok: true });
+	}
+	// Extraction ids are a chat id (chat runs) or a notes source id.
+	if (!getChat(id) && !stores.graphStore.readSources().some((source) => source.id === id)) {
+		return Response.json({ ok: false, reason: "not_found" }, { status: 404 });
 	}
 	// kind === "extraction": true cancellation; idempotent (nothing in
 	// flight is success — same dock outcome)
