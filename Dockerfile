@@ -7,7 +7,10 @@
 FROM node:24-bookworm-slim AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci --no-audit --no-fund
+# The lockfile is resolved on Windows in dev and can miss Linux-only
+# optional peers; resolve on the target platform here. Switch back to
+# `npm ci` once the lockfile is regenerated on Linux.
+RUN npm install --no-audit --no-fund
 
 FROM node:24-bookworm-slim AS build
 WORKDIR /app
