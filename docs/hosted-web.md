@@ -1,8 +1,9 @@
 # Hosted web version — implementation plan
 
-Status: **Phases 0–3 implemented** (2026-11-06); Phase 2's Supabase migration
-is pending because the project database was unreachable at implementation time.
-Phase 4 (deployment) next.
+Status: **Phases 0–4 implemented in code** (2026-11-07). Remaining manual
+items: apply the Supabase migration, add the real domain/keys, and run the
+container on the host. Phase 2's migration was blocked because the project
+database was unreachable at implementation time.
 
 Goal: run LearnHarness as a free, public, multi-user website on a custom domain,
 funded by the operator's own provider key. No payments, no desktop app.
@@ -254,6 +255,32 @@ The operator key is public money. All of these ship before the link is shared.
 | Uploads | Existing 25 MiB body bounds; 250 MB per-workspace disk cap; 50 sessions. |
 | Observability | Spend is recomputed from durable records; cap refusals are explicit codes. |
 
+### Phase 4 — container (implemented)
+
+- `Dockerfile`: multi-stage `node:24-bookworm-slim`, `npm ci` →
+  `next build` → standalone `node server.js`. Runs as the non-root `node`
+  user, mounts `/data`, exposes 3000, and health-checks `/api/health`.
+  Repo-only build bloat is removed in the runner stage.
+- `docker-compose.yml`: one app service, `./data:/data`, public Supabase
+  values as build args, secrets/runtime limits from `.env.hosted`.
+- `proxy.ts` bypasses workspace minting for `/api/health` (health probes must
+  not create directories).
+- The standalone layout was verified locally: `node .next/standalone/server.js`
+  served pages and APIs, two cookie jars stayed isolated, and the key
+  inventory was empty. Docker itself was not available on the development
+  machine, so the image build is the one unverified step.
+- Start locally/production:
+  ```bash
+  cp docs/hosted-web.md .env.hosted   # then fill it
+  docker compose --env-file .env.hosted up -d --build
+  ```
+  `NEXT_PUBLIC_*` values must be present at build time; `LH_*` values are
+  runtime. The health endpoint is `GET /api/health`.
+- Fly.io shape: one machine (do not scale), a volume mounted at `/data`,
+  `LH_DATA_DIR=/data`, secrets via `fly secrets set`, and the public build
+  args in `[build.args]`. Cloudflare DNS in front with Full (strict) TLS;
+  enable a Managed Challenge on `/chat/*` and `/api/chat` for bot pressure.
+
 ## Deployment
 
 ```bash
@@ -335,7 +362,7 @@ LH_HOSTED_WORKSPACE_DISK_MB=250
 - SSRF guard for research; disable browser tool if it cannot be guarded.
 - Tests: caps refuse before inference; limits reset on schedule.
 
-### Phase 4 — Deployment (2–3 days)
+### Phase 4 — Deployment (2–3 days) — **implemented in code**
 
 - Dockerfile, `.dockerignore`, compose file for local testing.
 - Volume, snapshots, health check, structured logs.
