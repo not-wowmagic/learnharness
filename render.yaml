@@ -42,15 +42,20 @@ services:
         value: "50"
       - key: LH_HOSTED_WORKSPACE_DISK_MB
         value: "250"
-      # Operator model pins. Change if you use a different provider.
+      # Operator model pins: OpenCode Go only, as requested. The model is
+      # text-only; image/PDF-vision features may reject.
       - key: LH_HOSTED_MODEL_STRONG
-        value: openrouter:anthropic/claude-sonnet-4.5
+        value: opencode-go:deepseek-v4.1-flash
       - key: LH_HOSTED_MODEL_CHEAP
-        value: openrouter:google/gemini-2.5-flash
+        value: opencode-go:deepseek-v4.1-flash
       - key: LH_HOSTED_MODEL_VISION
-        value: openrouter:google/gemini-2.5-flash
+        value: opencode-go:deepseek-v4.1-flash
+      - key: OPENCODE_GO_MODEL
+        value: deepseek-v4.1-flash
+      - key: OPENCODE_GO_BASE_URL
+        value: https://opencode.ai/zen/go/v1
       # Prompted in the Render dashboard; never committed.
-      - key: OPENROUTER_API_KEY
+      - key: OPENCODE_GO_API_KEY
         sync: false
       # Optional accounts: add the Supabase values after the project is awake.
       # NEXT_PUBLIC_* must be present at BUILD time (public values only).

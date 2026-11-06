@@ -1,14 +1,19 @@
+import { randomUUID } from "node:crypto";
 import {
 	clampThinkingLevel,
 	createModels,
+	createProvider,
 	getSupportedThinkingLevels,
 	type Api,
 	type CacheRetention,
 	type Model,
 	type Models,
 	type MutableModels,
+	type Provider,
+	type ProviderHeaders,
 	type StreamFunction,
 } from "@earendil-works/pi-ai";
+import { openAICompletionsApi } from "@earendil-works/pi-ai/api/openai-completions.lazy";
 import { builtinProviders } from "@earendil-works/pi-ai/providers/all";
 import { lazyApi, lazyStream } from "@earendil-works/pi-ai/api/lazy";
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
@@ -72,6 +77,59 @@ export function configureProviderSource(source: ProviderSource): void {
 	providerSource = source;
 }
 
+/** The operator's OpenCode Go provider (hosted-web phase 2/4): an
+ *  OpenAI-compatible endpoint used when the deployment pins it. It is a
+ *  normal registered provider, so slots, engines, and the cost-free
+ *  accounting path all work without the per-workspace custom-endpoint flow. */
+export const HOSTED_PROVIDER_ID = "opencode-go";
+
+function hostedOpenCodeProvider(): Provider<Api> | null {
+	const key =
+		process.env.OPENCODE_GO_API_KEY?.trim() ||
+		process.env.OPENCODE_API_KEY?.trim();
+	if (!key) return null;
+	const baseUrl = (
+		process.env.OPENCODE_GO_BASE_URL?.trim() ||
+		"https://opencode.ai/zen/go/v1"
+	).replace(/\/+$/, "");
+	const modelId =
+		process.env.OPENCODE_GO_MODEL?.trim() || "deepseek-v4.1-flash";
+	const contextWindow =
+		Number(process.env.OPENCODE_GO_CONTEXT_WINDOW) || 128_000;
+	const maxTokens = Number(process.env.OPENCODE_GO_MAX_TOKENS) || 8_192;
+	const model: Model<Api> = {
+		id: modelId,
+		name: modelId,
+		api: "openai-completions",
+		provider: HOSTED_PROVIDER_ID,
+		baseUrl,
+		// The hosted beta sends text only and leaves reasoning effort unset:
+		// deepseek-v4.1-flash is used as a plain chat/tool model.
+		reasoning: false,
+		input: ["text"],
+		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+		contextWindow,
+		maxTokens,
+		type: "chat",
+	};
+	return createProvider<Api>({
+		id: HOSTED_PROVIDER_ID,
+		name: "OpenCode Go",
+		baseUrl,
+		// OpenCode Go refuses requests without a routing session. The static
+		// value is a fallback; the engine overrides it per turn below.
+		headers: { "x-opencode-session": randomUUID() },
+		auth: {
+			apiKey: {
+				name: "OpenCode Go API key",
+				resolve: async () => ({ auth: { apiKey: key }, source: "env" }),
+			},
+		},
+		models: [model],
+		api: openAICompletionsApi(),
+	});
+}
+
 /** The process-wide pi-ai Models collection — EVERY builtin provider's
  *  catalog (model slots wave, 2026-09-20): engines and the picker resolve
  *  against all of pi-ai's per-provider catalogs, so a settings slot can pin
@@ -92,6 +150,8 @@ export function piModels() {
 				: provider);
 		}
 		collection.setProvider(createClaudeCodeProvider(streamClaudeCode));
+		const hosted = hostedOpenCodeProvider();
+		if (hosted) collection.setProvider(hosted);
 	}
 	providerSource?.sync(collection);
 	return collection;
@@ -160,10 +220,22 @@ export function piEngineForSpec(spec: ResolvedModelSpec, background: boolean | (
 			// Read the slot preference for every operation, not just engine creation.
 			// Unset adds NOTHING: native defaults/env and explicit caller options survive.
 			const retention = cacheRetention?.();
+			// A fresh OpenCode routing session per model operation: the gateway
+			// uses it to keep related calls together without sharing one id
+			// across every visitor.
+			const hostedSession = spec.provider === HOSTED_PROVIDER_ID ? randomUUID() : undefined;
 			const requestOptions = {
 				...options,
 				...(retention !== undefined ? { cacheRetention: retention } : {}),
 				reasoning: level === "off" ? undefined : level,
+				...(hostedSession
+					? {
+							transformHeaders: (headers: ProviderHeaders): ProviderHeaders => ({
+								...headers,
+								"x-opencode-session": hostedSession,
+							}),
+						}
+					: {}),
 			};
 			if (custom) {
 				// Revalidate before EVERY upstream model operation, including later
