@@ -841,7 +841,7 @@ export function AgentSection({
 						</SettingsRow>
 					);
 				})()}
-				{TOGGLE_TOOLS.map((id) => (
+				{(HOSTED ? TOGGLE_TOOLS.filter((id) => id !== "demo") : TOGGLE_TOOLS).map((id) => (
 					<SettingsRow
 						key={id}
 						label={`Tool · ${id}`}

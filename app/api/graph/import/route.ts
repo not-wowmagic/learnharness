@@ -17,7 +17,7 @@
  * healthy. The dock's chips + graph refetch track progress live through
  * /api/graph/status, as with session runs.
  */
-import { convertPdf, extraction, joinPages, NotesImportError, sourceDirectory, withWorkspace } from "@/src/server";
+import { convertPdf, extraction, hostedDiskCapReached, joinPages, NotesImportError, sourceDirectory, withWorkspace } from "@/src/server";
 import { MAX_IMPORT_BODY_BYTES, MAX_IMPORT_BYTES, validNotesPath } from "@/lib/notes-import-limits.ts";
 import {
 	emit,
@@ -120,8 +120,15 @@ async function POSTHandler(request: Request) {
 			: "Could not read the upload. It may be incomplete; please select the files again." }, { status: oversized ? 413 : 400 });
 	}
 	const files = form.getAll("files").filter((f): f is File => f instanceof File);
-	if (files.reduce((total, file) => total + file.size, 0) > MAX_IMPORT_BYTES) {
+	const uploadBytes = files.reduce((total, file) => total + file.size, 0);
+	if (uploadBytes > MAX_IMPORT_BYTES) {
 		return Response.json({ results: [] as ImportResult[], error: "Too big. Max 25 MB." }, { status: 413 });
+	}
+	if (hostedDiskCapReached(uploadBytes)) {
+		return Response.json(
+			{ results: [] as ImportResult[], error: "This workspace reached its storage limit. Delete a session or import fewer files.", code: "storage_limit" },
+			{ status: 413 },
+		);
 	}
 	if (files.length === 0) {
 		return Response.json({ results: [] as ImportResult[], error: "no files" }, { status: 400 });

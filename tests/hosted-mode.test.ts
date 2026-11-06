@@ -102,6 +102,8 @@ describe("hosted model pins", () => {
 			model: { provider: "user", id: "cheap-choice" },
 		});
 		assert.deepEqual(result.graph, { enabled: false });
+		// Hosted beta: the browser-driving demo tool is forced off.
+		assert.equal(result.agent?.tools?.demo, false);
 	});
 
 	it("gives a first-boot workspace the pinned models", () => {

@@ -1,8 +1,8 @@
 # Hosted web version — implementation plan
 
-Status: **Phases 0–2 implemented** (2026-11-06); Phase 2's Supabase migration
+Status: **Phases 0–3 implemented** (2026-11-06); Phase 2's Supabase migration
 is pending because the project database was unreachable at implementation time.
-Phase 3 next.
+Phase 4 (deployment) next.
 
 Goal: run LearnHarness as a free, public, multi-user website on a custom domain,
 funded by the operator's own provider key. No payments, no desktop app.
@@ -212,19 +212,47 @@ same browser that requested it (or use a custom `token_hash` email template).
 
 Supabase project creation and env vars are manual setup steps.
 
-## Abuse controls
+### Phase 3 — implemented
+
+- **Turn budgets** per workspace: 20/hour and 100/day by default
+  (`LH_HOSTED_TURNS_PER_HOUR`, `LH_HOSTED_TURNS_PER_DAY`), plus a 60/hour
+  per-IP budget (`LH_HOSTED_TURNS_PER_IP_HOUR`). Refusals are 429 with
+  `Retry-After`; counters are in-process (single-instance design).
+- **Concurrency** per workspace (`LH_HOSTED_ACTIVE_TURNS`, default 3), using
+  the existing turn-liveness registry.
+- **Spend caps** recomputed from durable usage records (teaching turns,
+  background jobs, and extraction runs): workspace daily
+  `LH_HOSTED_WORKSPACE_DAILY_USD` (default 2) and global daily
+  `LH_HOSTED_GLOBAL_DAILY_USD` (default 20). Spend survives restarts; the
+  scan is cached briefly.
+- **Kill switch**: `LH_HOSTED_PAUSED=1` refuses new turns with 503.
+- **Storage bounds**: 50 sessions per workspace (`LH_HOSTED_MAX_SESSIONS`)
+  and a 250 MB workspace disk cap (`LH_HOSTED_WORKSPACE_DISK_MB`), enforced
+  on session creation and notes import.
+- **SSRF guard** for research/web fetch and PDF URL downloads: loopback,
+  RFC1918, link-local, CGNAT, metadata, ULA, and mapped/private IPv6 are
+  refused; every redirect hop is re-checked.
+- **Demo disabled** in hosted mode (server-side Chromium is the largest
+  SSRF/compute surface); the Agent UI hides its toggle and the settings
+  overlay forces it off.
+- Bot protection at the edge: put the domain behind Cloudflare and enable a
+  Managed Challenge / Turnstile rule. App-level Turnstile verification is
+  deferred; the turn/IP budgets are the in-app backstop.
+
+`tests/limits.test.ts` and `tests/safe-url.test.ts` pin the budgets, cap
+refusals, concurrency gate, pause switch, and private-address classification.
 
 The operator key is public money. All of these ship before the link is shared.
 
 | Control | Detail |
 | --- | --- |
-| Turnstile | Required on workspace creation and magic-link requests. Skipped when keys are unset (local dev). |
-| Rate limits | Upstash sliding window: 20 turns/hour and 100/day per workspace; 10/hour per IP for new workspaces; 3 concurrent turns. |
-| Spend caps | Sum `TurnUsage` and job usage per workspace. Soft cap warns; hard cap refuses new turns. Global daily cap (default $20) returns a friendly 503. |
-| Concurrency | Reuse the existing per-chat liveness; add a per-workspace job limit. |
-| Egress | Block private IPs, localhost, link-local, and metadata endpoints for research fetch and any browser use. |
-| Uploads | Existing 25 MiB body bounds; per-workspace disk cap. |
-| Observability | Log spend by workspace and day; alert when the global cap trips. |
+| Turnstile | Cloudflare Managed Challenge / Turnstile at the edge (deployment step). App-level verification deferred. |
+| Rate limits | In-process sliding windows: 20 turns/hour and 100/day per workspace; 60/hour per IP; 3 concurrent turns. |
+| Spend caps | Sum `TurnUsage`, job usage, and extraction usage. Workspace daily $2 and global daily $20 defaults; refusals are 429/503. |
+| Concurrency | Per-workspace active-turn counter in the existing liveness registry. |
+| Egress | Block private IPs, localhost, link-local, metadata, ULA, and mapped private IPv6; re-check redirects. |
+| Uploads | Existing 25 MiB body bounds; 250 MB per-workspace disk cap; 50 sessions. |
+| Observability | Spend is recomputed from durable records; cap refusals are explicit codes. |
 
 ## Deployment
 
@@ -244,10 +272,17 @@ NEXT_PUBLIC_SITE_URL=https://your-domain
 NEXT_PUBLIC_SUPABASE_URL=...
 NEXT_PUBLIC_SUPABASE_ANON_KEY=...
 SUPABASE_SERVICE_ROLE_KEY=...
-NEXT_PUBLIC_TURNSTILE_SITE_KEY=...
-TURNSTILE_SECRET_KEY=...
-UPSTASH_REDIS_REST_URL=...
-UPSTASH_REDIS_REST_TOKEN=...
+
+# limits
+LH_HOSTED_TURNS_PER_HOUR=20
+LH_HOSTED_TURNS_PER_DAY=100
+LH_HOSTED_TURNS_PER_IP_HOUR=60
+LH_HOSTED_ACTIVE_TURNS=3
+LH_HOSTED_WORKSPACE_DAILY_USD=2
+LH_HOSTED_GLOBAL_DAILY_USD=20
+LH_HOSTED_MAX_SESSIONS=50
+LH_HOSTED_WORKSPACE_DISK_MB=250
+# LH_HOSTED_PAUSED=1
 ```
 
 - Multi-stage Dockerfile on `node:24-bookworm-slim`; `npm ci`,
@@ -255,7 +290,8 @@ UPSTASH_REDIS_REST_TOKEN=...
   `output: "standalone"`, and Next 16 refuses `next start` in that mode, so
   the hosted image runs `node .next/standalone/server.js` after the usual
   `public/` and `.next/static/` copies (the same layout the desktop build
-  already curates). Add Chromium only if the demo tool is enabled.
+  already curates). Chromium is not needed in the hosted image: the demo
+  tool is disabled in hosted mode.
 - One Fly.io machine (or Railway/Render/VPS) with a volume mounted at `/data`.
   Do not scale above one instance: jobs, locks, and SSE coordination are
   process-local.
@@ -291,7 +327,7 @@ UPSTASH_REDIS_REST_TOKEN=...
 - Minimal "Save progress" UI and workspace indicator.
 - Tests: claim, re-login, and sign-out flows.
 
-### Phase 3 — Abuse controls (3–4 days)
+### Phase 3 — Abuse controls (3–4 days) — **implemented**
 
 - Turnstile verification on workspace creation and magic-link requests.
 - Upstash rate limits and concurrency caps.
@@ -309,9 +345,11 @@ UPSTASH_REDIS_REST_TOKEN=...
 
 ## Risks
 
-- **Key drain.** Mitigated by hard caps, but the cap must exist before launch.
-  A forgotten tool (research, STT, demo browser) is a spending leak — keep all
-  optional key variables unset in production.
+- **Key drain.** Mitigated by turn/IP budgets, concurrency, and spend caps.
+  A single turn can still overshoot slightly (one turn may dispatch several
+  jobs/extractions before the next admission check); the caps are a soft
+  ceiling, not a per-request wallet. Keep optional key variables unset in
+  production and enable the Cloudflare edge challenge.
 - **Single instance.** A crash stops all live runs. Restart recovery exists,
   but there is no HA. Acceptable for beta.
 - **Anonymous data loss.** Clearing cookies loses a workspace. The optional

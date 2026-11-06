@@ -22,14 +22,35 @@
 
 import { emit } from "../core/events.ts";
 import { clearTurnFailure } from "./turn-runs.ts";
+import { currentWorkspace } from "../store/workspace.ts";
 
 interface LhGlobal {
 	__lhTurnRegistry?: Map<string, number>;
+	__lhTurnWorkspace?: Map<string, string>;
+	__lhTurnWorkspaceCounts?: Map<string, number>;
 }
 
 function registry(): Map<string, number> {
 	const g = globalThis as typeof globalThis & LhGlobal;
 	return (g.__lhTurnRegistry ??= new Map<string, number>());
+}
+
+function turnWorkspace(): Map<string, string> {
+	const g = globalThis as typeof globalThis & LhGlobal;
+	return (g.__lhTurnWorkspace ??= new Map<string, string>());
+}
+
+function workspaceCounts(): Map<string, number> {
+	const g = globalThis as typeof globalThis & LhGlobal;
+	return (g.__lhTurnWorkspaceCounts ??= new Map<string, number>());
+}
+
+function releaseWorkspaceSlot(chatId: string): void {
+	const workspaceId = turnWorkspace().get(chatId) ?? currentWorkspace().id;
+	turnWorkspace().delete(chatId);
+	const remaining = Math.max(0, (workspaceCounts().get(workspaceId) ?? 1) - 1);
+	if (remaining === 0) workspaceCounts().delete(workspaceId);
+	else workspaceCounts().set(workspaceId, remaining);
 }
 
 const inFlight = registry();
@@ -45,7 +66,10 @@ const MAX_TURN_MS = 30 * 60_000;
 export function beginTurn(chatId: string): boolean {
 	if (isTurnRunning(chatId)) return false;
 	clearTurnFailure(chatId);
+	const workspaceId = currentWorkspace().id;
 	inFlight.set(chatId, Date.now());
+	turnWorkspace().set(chatId, workspaceId);
+	workspaceCounts().set(workspaceId, (workspaceCounts().get(workspaceId) ?? 0) + 1);
 	emit("turn-started", { chatId });
 	return true;
 }
@@ -58,7 +82,9 @@ export function beginTurn(chatId: string): boolean {
  * defensive no-op endTurn must not fire a spurious settle.
  */
 export function endTurn(chatId: string): void {
-	if (inFlight.delete(chatId)) emit("turn-settled", { chatId });
+	if (!inFlight.delete(chatId)) return;
+	releaseWorkspaceSlot(chatId);
+	emit("turn-settled", { chatId });
 }
 
 /** True while the chat's turn is in flight; lazily evicts stale entries.
@@ -71,7 +97,18 @@ export function isTurnRunning(chatId: string): boolean {
 	if (since === undefined) return false;
 	if (Date.now() - since > MAX_TURN_MS) {
 		inFlight.delete(chatId);
+		releaseWorkspaceSlot(chatId);
 		return false;
 	}
 	return true;
+}
+
+/** Active turns for one workspace (the hosted concurrency gate). */
+export function activeTurnsInWorkspace(
+	workspaceId: string = currentWorkspace().id,
+): number {
+	// Lazy sweep first: a pathologically stuck turn must not hold a slot
+	// forever when the next admission check reads the count.
+	for (const chatId of [...inFlight.keys()]) isTurnRunning(chatId);
+	return workspaceCounts().get(workspaceId) ?? 0;
 }

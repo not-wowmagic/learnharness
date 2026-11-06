@@ -100,7 +100,21 @@ export function withHostedModelPins(
 ): UserSettings | null {
 	if (!hostedEnabled(env)) return record;
 	const pins = hostedModelPins(env);
-	if (!pins) return record;
+	if (!pins && !record) return null;
 	const base = record ?? { version: CURRENT_SETTINGS_VERSION };
-	return { ...base, models: { ...(base.models ?? {}), ...pins } };
+	const withHostedTools = {
+		...base,
+		// Demo generation drives a server-side browser; the hosted beta keeps
+		// it off (SSRF + compute surface). The settings overlay wins over any
+		// visitor toggle, and the Agent UI hides the demo row in hosted mode.
+		agent: {
+			...base.agent,
+			tools: { ...(base.agent?.tools ?? {}), demo: false },
+		},
+	};
+	if (!pins) return withHostedTools;
+	return {
+		...withHostedTools,
+		models: { ...(base.models ?? {}), ...pins },
+	};
 }

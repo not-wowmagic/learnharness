@@ -234,6 +234,39 @@ export function listWorkspaces(): WorkspacePaths[] {
 		.map((entry) => workspacePathsFor(path.join(PATHS.workspaces, entry.name), entry.name));
 }
 
+const diskCache = new Map<string, { at: number; bytes: number }>();
+const DISK_CACHE_MS = 60_000;
+
+/** Bytes under a workspace root (best effort; symlinks are not followed). */
+export function workspaceDiskBytes(root: string = currentWorkspace().root): number {
+	const cached = diskCache.get(root);
+	if (cached && Date.now() - cached.at < DISK_CACHE_MS) return cached.bytes;
+	let bytes = 0;
+	const walk = (dir: string) => {
+		let entries: fs.Dirent[];
+		try {
+			entries = fs.readdirSync(dir, { withFileTypes: true });
+		} catch {
+			return;
+		}
+		for (const entry of entries) {
+			if (entry.isSymbolicLink()) continue;
+			const file = path.join(dir, entry.name);
+			if (entry.isDirectory()) walk(file);
+			else if (entry.isFile()) {
+				try {
+					bytes += fs.statSync(file).size;
+				} catch {
+					// A file removed mid-walk simply is not counted.
+				}
+			}
+		}
+	};
+	walk(root);
+	diskCache.set(root, { at: Date.now(), bytes });
+	return bytes;
+}
+
 const PRUNE_INTERVAL_MS = 60 * 60 * 1000;
 let lastPruneAt = 0;
 
