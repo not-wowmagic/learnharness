@@ -15,7 +15,7 @@ process.env.LH_DATA_DIR = dataRoot;
 process.env.LH_HOSTED = "1";
 
 const workspace = await import("../src/store/workspace.ts");
-const { admitHostedChat, globalSpendToday, workspaceSpendToday } = await import("../src/server/limits.ts");
+const { admitHostedChat, admitHostedExtraction, admitHostedImport, globalSpendToday, workspaceSpendToday } = await import("../src/server/limits.ts");
 const { beginTurn, endTurn } = await import("../src/server/turn-liveness.ts");
 
 after(() => {
@@ -108,6 +108,26 @@ describe("hosted admission", () => {
 		} finally {
 			workspace.runInWorkspace(ws, () => endTurn("chat_concurrency_fixture"));
 		}
+	});
+
+	it("bounds notes imports separately from chat turns", async () => {
+		setLimits({ LH_HOSTED_IMPORTS_PER_HOUR: "1" });
+		const ws = workspace.createWorkspace();
+		const ip = "203.0.113.18";
+		assert.deepEqual(await workspace.runInWorkspace(ws, () => admitHostedImport(request(ip))), { ok: true });
+		const second = await workspace.runInWorkspace(ws, () => admitHostedImport(request(ip)));
+		assert.equal(second.ok, false);
+		if (!second.ok) assert.equal(second.body.code, "import_rate_limited");
+	});
+
+	it("bounds manual extraction separately from chat turns", async () => {
+		setLimits({ LH_HOSTED_EXTRACTIONS_PER_HOUR: "1" });
+		const ws = workspace.createWorkspace();
+		const ip = "203.0.113.19";
+		assert.deepEqual(await workspace.runInWorkspace(ws, () => admitHostedExtraction(request(ip))), { ok: true });
+		const second = await workspace.runInWorkspace(ws, () => admitHostedExtraction(request(ip)));
+		assert.equal(second.ok, false);
+		if (!second.ok) assert.equal(second.body.code, "extraction_rate_limited");
 	});
 
 	it("enforces a zero workspace spend cap", async () => {

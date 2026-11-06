@@ -233,6 +233,54 @@ function refuse(
  * The hosted turn gate. Non-hosted deployments pass through untouched.
  * Call before parsing/inference; a refused request has no durable effects.
  */
+async function admitHostedWorkload(
+	request: Request,
+	label: string,
+	workspaceLimitVar: string,
+	workspaceLimitDefault: number,
+	ipLimitVar: string,
+	ipLimitDefault: number,
+): Promise<ChatAdmission> {
+	if (!isHostedMode()) return { ok: true };
+	if (process.env.LH_HOSTED_PAUSED === "1") {
+		return refuse(503, "paused", "The hosted service is paused. Try again later.");
+	}
+	const workspace = currentWorkspace();
+	const ip = clientIp(request);
+	if (!hit(`${label}:hour:${workspace.id}`, envInt(workspaceLimitVar, workspaceLimitDefault), 60 * 60_000)) {
+		return refuse(429, `${label}_rate_limited`, `Too many ${label} requests this hour. Try again shortly.`, 60 * 60);
+	}
+	if (!hit(`${label}:ip:hour:${ip}`, envInt(ipLimitVar, ipLimitDefault), 60 * 60_000)) {
+		return refuse(429, `${label}_ip_rate_limited`, `Too many ${label} requests from this network. Try again later.`, 60 * 60);
+	}
+	return { ok: true };
+}
+
+/** Notes imports run extractor + auditor model calls; bound them separately
+ *  from chat turns so a bulk upload cannot bypass the turn budget. */
+export function admitHostedImport(request: Request): Promise<ChatAdmission> {
+	return admitHostedWorkload(
+		request,
+		"import",
+		"LH_HOSTED_IMPORTS_PER_HOUR",
+		5,
+		"LH_HOSTED_IMPORTS_PER_IP_HOUR",
+		10,
+	);
+}
+
+/** Manual coverage extraction also spends model calls. */
+export function admitHostedExtraction(request: Request): Promise<ChatAdmission> {
+	return admitHostedWorkload(
+		request,
+		"extraction",
+		"LH_HOSTED_EXTRACTIONS_PER_HOUR",
+		10,
+		"LH_HOSTED_EXTRACTIONS_PER_IP_HOUR",
+		20,
+	);
+}
+
 export async function admitHostedChat(request: Request): Promise<ChatAdmission> {
 	if (!isHostedMode()) return { ok: true };
 

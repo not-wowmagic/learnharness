@@ -109,6 +109,10 @@ export function withHostedModelPins(
 		// visitor toggle, and the Agent UI hides the demo row in hosted mode.
 		agent: {
 			...base.agent,
+			// Per-role overrides could bypass the pinned slots (an expensive
+			// background model). The hosted deployment resolves every role
+			// from its slot only.
+			models: {},
 			tools: { ...(base.agent?.tools ?? {}), demo: false },
 		},
 	};

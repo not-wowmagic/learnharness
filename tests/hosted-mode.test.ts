@@ -106,6 +106,28 @@ describe("hosted model pins", () => {
 		assert.equal(result.agent?.tools?.demo, false);
 	});
 
+	it("strips per-role model overrides so background roles stay pinned", () => {
+		setHostedEnv({
+			LH_HOSTED_MODEL_STRONG: "openrouter:pinned-strong",
+			LH_HOSTED_MODEL_CHEAP: "openrouter:pinned-cheap",
+			LH_HOSTED_MODEL_VISION: "openrouter:pinned-vision",
+		});
+		const result = withHostedModelPins({
+			version: 1,
+			agent: {
+				models: {
+					researcher: { model: { provider: "expensive", id: "unapproved" } },
+				},
+				tools: { demo: true },
+			},
+		});
+		assert.deepEqual(result?.agent?.models, {});
+		assert.equal(result?.agent?.tools?.demo, false);
+		const effective = resolveSettings(result);
+		assert.equal(effective.agent.models.researcher?.provider, "openrouter");
+		assert.equal(effective.agent.models.researcher?.id, "pinned-cheap");
+	});
+
 	it("gives a first-boot workspace the pinned models", () => {
 		setHostedEnv({
 			LH_HOSTED_MODEL_STRONG: "openrouter:pinned",

@@ -10,11 +10,20 @@
  * flight (the dock is the source of truth for that); failures are logged
  * by the pipeline and leave coverage untouched — the button stays honest.
  */
-import { extraction, extractionStatuses, withWorkspace } from "@/src/server";
+import { admitHostedExtraction, extraction, extractionStatuses, withWorkspace } from "@/src/server";
 
 export const dynamic = "force-dynamic";
 
 async function POSTHandler(request: Request) {
+	const admission = await admitHostedExtraction(request);
+	if (!admission.ok) {
+		return Response.json(admission.body, {
+			status: admission.status,
+			headers: admission.body.retryAfterSeconds
+				? { "Retry-After": String(admission.body.retryAfterSeconds) }
+				: undefined,
+		});
+	}
 	let body: unknown;
 	try {
 		body = await request.json();

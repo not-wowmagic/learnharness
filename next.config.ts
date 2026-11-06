@@ -4,6 +4,8 @@ import { MAX_IMPORT_BODY_BYTES } from "./lib/notes-import-limits.ts";
 
 const pkg = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8")) as { version: string; homepage: string };
 
+const hostedBuild = process.env.NEXT_PUBLIC_LH_HOSTED === "1";
+
 const nextConfig: NextConfig = {
 	// Public build metadata only; no new runtime Electron version API.
 	env: { LH_VERSION: pkg.version, LH_HOMEPAGE: pkg.homepage },
@@ -119,6 +121,37 @@ const nextConfig: NextConfig = {
 		"@silvia-odwyer/photon-node", // CJS loads its adjacent WASM from disk
 		"@resvg/resvg-js", // native binding — same
 	],
+	// Baseline browser hardening. The CSP intentionally does NOT restrict
+	// scripts (Next injects inline bootstrap code); it closes clickjacking,
+	// plugin embedding, base-tag hijacking, and cross-form posting.
+	async headers() {
+		return [
+			{
+				source: "/(.*)",
+				headers: [
+					{ key: "X-Frame-Options", value: "DENY" },
+					{ key: "X-Content-Type-Options", value: "nosniff" },
+					{ key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+					{
+						key: "Content-Security-Policy",
+						value: "frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'",
+					},
+					{
+						key: "Strict-Transport-Security",
+						value: "max-age=31536000; includeSubDomains",
+					},
+					...(hostedBuild
+						? [
+								{
+									key: "Permissions-Policy",
+									value: "camera=(), microphone=(), geolocation=()",
+								},
+							]
+						: []),
+				],
+			},
+		];
+	},
 };
 
 export default nextConfig;
