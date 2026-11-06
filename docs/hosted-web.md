@@ -1,12 +1,35 @@
 # Hosted web version — implementation plan
 
-Status: **Phases 0–4 implemented in code** (2026-11-07). Remaining manual
-items: apply the Supabase migration, add the real domain/keys, and run the
-container on the host. Phase 2's migration was blocked because the project
-database was unreachable at implementation time.
+Status: **Live on Render** (2026-11-07):
+**https://learnharness-ny0t.onrender.com**
 
 Goal: run LearnHarness as a free, public, multi-user website on a custom domain,
 funded by the operator's own provider key. No payments, no desktop app.
+
+## Live deployment
+
+- **URL:** https://learnharness-ny0t.onrender.com
+- **Service:** `srv-dbn15u3bc2fs73b5leu0`, Render free plan, Singapore.
+- **Provider:** OpenCode Go, `deepseek-v4.1-flash` pinned to strong, cheap,
+  and vision. The model is text-only, so image/PDF-vision features may fail.
+- **Limits:** 20 turns/hour, 100/day, 60/IP/hour, 2 concurrent, $2 workspace
+  and $20 global daily caps. The provider reports cost 0 (Go subscription),
+  so the turn budgets are the real guard.
+- **Durability:** Render's free service has an **ephemeral filesystem**.
+  Chats and the graph are lost on restart, spin-down, or redeploy. For
+  persistence, use a paid Render instance with a disk mounted at `/data`, or
+  a VM with a real volume (GCP/Oracle).
+- **Accounts:** off in this build — the Supabase project was unreachable and
+  the public keys are not baked into the build.
+- **Auto-deploy:** the service was created through the API, so the GitHub
+  webhook is not active. Connect the repo in Render → Settings → Build &
+  Deploy, or trigger a deploy from the dashboard/API after pushes.
+- **Custom domain:** Render → Settings → Custom Domains, then point a
+  Cloudflare CNAME at `learnharness-ny0t.onrender.com`. Add the domain to the
+  Supabase redirect URLs when accounts are enabled.
+- **Tested live:** health 200, root/privacy 200, chat answered via
+  `opencode-go/deepseek-v4.1-flash`, a second cookie saw 0 chats and got 404
+  for the first workspace, `/api/keys` returned an empty inventory.
 
 ## Decisions
 
