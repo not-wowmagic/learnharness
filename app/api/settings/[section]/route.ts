@@ -38,6 +38,7 @@ import {
 	clampModelsLevels,
 	effectiveSettings,
 	fileAccessConfigurationError,
+	isHostedMode,
 	promptOverrides,
 	readSettingsRecord,
 	validateChatSettings,
@@ -53,6 +54,14 @@ type AnySectionParser = (body: unknown) => SettingsBodyResult<unknown>;
 
 export async function PUT(request: Request, ctx: { params: Promise<{ section: string }> }) {
 	const { section } = await ctx.params;
+	// Hosted mode pins models server-side. Refuse the two model-bearing
+	// sections outright: hiding the picker is not an authorization boundary.
+	if (isHostedMode() && (section === "models" || section === "chat")) {
+		return Response.json(
+			{ error: "Model settings are managed by the host." },
+			{ status: 403 },
+		);
+	}
 	const parser = (SETTINGS_SECTIONS as Record<string, AnySectionParser>)[section];
 	if (!parser) {
 		return Response.json(

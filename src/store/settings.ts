@@ -27,6 +27,7 @@ import {
 import type { SettingsStore } from "../core/ports.ts";
 import { writeFileAtomicSync } from "./atomic-write.ts";
 import { parseFileAccessSettings, type FileAccessSettingsResult } from "../core/file-access.ts";
+import { withHostedModelPins } from "../core/hosted.ts";
 
 const FILE_ACCESS_ERROR = "File-access configuration cannot be read reliably. Learner-file access is blocked. Repair File access in Settings → Agent → Tools.";
 
@@ -88,16 +89,18 @@ export function readSettings(): UserSettings | null {
 	try {
 		raw = fs.readFileSync(SETTINGS_FILE, "utf-8");
 	} catch {
-		return null; // no settings.json yet — first boot, all factory defaults
+		// No settings.json yet — first boot. In hosted mode the operator's
+		// pinned slots still resolve (no workspace should 503 on day one).
+		return withHostedModelPins(null);
 	}
 	let parsed: unknown;
 	try {
 		parsed = JSON.parse(raw);
 	} catch {
-		return null; // corrupt → first-boot semantics (all factory defaults)
+		return withHostedModelPins(null); // corrupt → first-boot semantics
 	}
 	const record = sanitizeUserSettings(parsed);
-	if (!record) return null;
+	if (!record) return withHostedModelPins(null);
 	if (!fileAccessFromRecord(parsed).ok) {
 		// Unrelated section writes carry this safe placeholder, not a dropped
 		// malformed policy that would silently restore unrestricted reads.
@@ -106,7 +109,12 @@ export function readSettings(): UserSettings | null {
 	// Version chain (empty today): a future v2 migration slots in here —
 	// `if (record.version > CURRENT_SETTINGS_VERSION) …`. Unknown NEWER
 	// versions pass through untouched (the sanitizer preserved unknowns).
-	return record;
+	//
+	// Hosted mode overlays the operator's model pins HERE, at the one read
+	// seam every consumer shares (effectiveSettings, chat birth stamping,
+	// background role resolution, the settings dialog). Stored choices are
+	// preserved on disk but can never win in a hosted deployment.
+	return withHostedModelPins(record);
 }
 
 /** Persist the record (sanitized). Returns what was written. */

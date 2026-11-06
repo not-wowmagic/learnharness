@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CornerDownLeftIcon, DumbbellIcon } from "lucide-react";
 import { GraphView } from "@/components/graph-view";
+import { HOSTED } from "@/lib/hosted";
 import { MinimalHome } from "@/components/minimal-home";
 import { SetupDialog } from "@/components/setup-dialog";
 import { ComposerActions, NodePickerControl } from "@/components/composer-actions";
@@ -278,7 +279,7 @@ export function Home({
 						autoFocus
 						className="field-sizing-content lh-input max-h-48 min-h-10 flex-1 resize-none bg-transparent px-2.5 py-2 outline-none placeholder:text-muted-foreground"
 					/>
-					<AttachFilesButton editorRef={topicInputRef} />
+					{!HOSTED && <AttachFilesButton editorRef={topicInputRef} />}
 					{/* No tooltip on the start square — the ↵ glyph is the
 					    affordance (owner, subtlety round 2026-09-25). */}
 					<button
@@ -295,7 +296,7 @@ export function Home({
 					    while the RIGHT keeps the strong-slot control (fix wave: the
 					    pills write /api/settings/models). */}
 					<StatsBar
-						dictationSlot={<DictationBar dictation={dictation} />}
+						dictationSlot={HOSTED ? undefined : <DictationBar dictation={dictation} />}
 						turns={[] as TurnUsage[]}
 						leadingSlot={
 							<div className="flex items-center gap-0.5 rounded-md border border-border/60 bg-background p-0.5" data-testid="home-mode-switch">

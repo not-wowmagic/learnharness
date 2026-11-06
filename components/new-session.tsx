@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { useRouter } from "next/navigation";
 import { Conversation, ConversationContent, ConversationEmptyState } from "@/components/ai-elements/conversation";
 import { Composer } from "@/components/composer";
+import { HOSTED } from "@/lib/hosted";
 import { DictationBar, joinDictation, useDictation } from "@/components/dictation";
 import { useFieldCycle } from "@/components/field-cycle";
 import { SidebarToggle } from "@/components/sidebar";
@@ -208,7 +209,7 @@ export function DraftShell({
 									/>
 								</div>
 								<StatsBar
-									dictationSlot={<DictationBar dictation={dictation} />}
+									dictationSlot={HOSTED ? undefined : <DictationBar dictation={dictation} />}
 									turns={[]}
 								/>
 							</div>

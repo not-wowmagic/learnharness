@@ -76,6 +76,7 @@ import {
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import { prettyModel } from "@/components/usage-format";
 import { cn } from "@/lib/utils";
+import { HOSTED } from "@/lib/hosted";
 import { SettingsGroup, SettingsRow, SettingsMenuTrigger, Toggle, CommitInput } from "./controls.tsx";
 import { ModelMenuList, ThinkingMenuList } from "./model-menu";
 import { ChatGPTBackgroundAccess } from "./chatgpt-connection";
@@ -626,6 +627,10 @@ export function AgentSection({
 
 	return (
 		<>
+			{/* Hosted mode pins the strong/cheap/vision slots server-side;
+			    showing editable slots would promise a choice that the write
+			    route refuses. */}
+			{!HOSTED && (
 			<SettingsGroup label="Models" testid="group-models">
 				<button
 					type="button"
@@ -768,6 +773,7 @@ export function AgentSection({
 					);
 				})}
 			</SettingsGroup>
+			)}
 
 			<SettingsGroup label="Tools" testid="group-tools">
 				{/* The prober's graph tools (wave 7, owner ruling 2026-09-23):

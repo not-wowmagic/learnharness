@@ -2,6 +2,7 @@ import {
 	clampChatLevel,
 	effectiveSettings,
 	getChat,
+	isHostedMode,
 	parseSettingsBody,
 	stores,
 	validateChatSettings,
@@ -25,6 +26,15 @@ import type { ChatSettings } from "@/src/core";
  * (src/server/settings-body.ts, default-settings wave 2026-09-18).
  */
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
+	// Every field this route accepts is a model/thinking override. Hosted
+	// mode pins both, so the whole write is refused rather than partially
+	// ignored.
+	if (isHostedMode()) {
+		return Response.json(
+			{ error: "Model settings are managed by the host." },
+			{ status: 403 },
+		);
+	}
 	const { id } = await params;
 	if (!getChat(id)) return Response.json({ error: "Not found" }, { status: 404 });
 

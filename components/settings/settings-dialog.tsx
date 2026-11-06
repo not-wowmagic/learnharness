@@ -52,6 +52,7 @@ import { AppearanceSection, GraphSection } from "./appearance-section.tsx";
 import { KeyboardSection } from "./keyboard-section.tsx";
 import { ChatGPTUIProvider } from "./chatgpt-connection.tsx";
 import { NativeSubscriptionUIProvider } from "./subscription-connections.tsx";
+import { HOSTED } from "@/lib/hosted";
 
 /** Owner (2026-09-20): hints earn their place — mechanics-explaining
  *  prose is out; only the keyboard note stays (storage location is a
@@ -65,6 +66,12 @@ const SECTIONS = [
 	{ id: "general", label: "General" },
 ] as const;
 type SectionId = (typeof SECTIONS)[number]["id"];
+
+/** Hosted mode has no visitor-managed provider keys: the operator supplies
+ *  them. Hiding the section is cosmetic — the routes refuse writes too. */
+const VISIBLE_SECTIONS = HOSTED
+	? SECTIONS.filter((section) => section.id !== "keys")
+	: SECTIONS;
 
 /** `open(section?, row?)` — the optional ROW deep-links into the Keys
  *  section with that row unfolded (zero-keys wave: the dictation error's
@@ -82,10 +89,12 @@ export function SettingsDialogProvider({
 	children: React.ReactNode;
 }) {
 	const [show, setShow] = useState(false);
-	const [landOn, setLandOn] = useState<SectionId>("keys");
+	const [landOn, setLandOn] = useState<SectionId>(HOSTED ? "agent" : "keys");
 	const [landOnRow, setLandOnRow] = useState<string | null>(null);
 	const open = useCallback((section?: string, row?: string) => {
-		setLandOn(section ? section as SectionId : "keys");
+		const requested = (section ?? "keys") as SectionId;
+		// Deep links to the hidden Providers section land on Agent instead.
+		setLandOn(HOSTED && requested === "keys" ? "agent" : requested);
 		setLandOnRow(row ?? null);
 		setShow(true);
 	}, []);
@@ -133,7 +142,7 @@ function SettingsDialog({
  *  (portals render nothing under renderToStaticMarkup). */
 export function SettingsDialogBody({
 	onClose,
-	initialSection = "keys",
+	initialSection = HOSTED ? "agent" : "keys",
 	initialRow = null,
 }: {
 	onClose: () => void;
@@ -309,7 +318,7 @@ export function SettingsDialogBody({
 					data-testid="settings-nav"
 					className="flex w-44 shrink-0 flex-col gap-1 border-r border-border p-2"
 				>
-					{SECTIONS.map((s) => (
+					{VISIBLE_SECTIONS.map((s) => (
 						<button
 							key={s.id}
 							type="button"
@@ -370,7 +379,7 @@ export function SettingsDialogBody({
 									/>
 								</SettingsSection>
 							)}
-							{active === "keys" && (
+							{!HOSTED && active === "keys" && (
 								<SettingsSection title="Providers" testid="section-keys">
 									<KeysSection initialRow={initialRow ?? undefined} />
 								</SettingsSection>

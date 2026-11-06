@@ -17,10 +17,19 @@
  * file, and `shadowedByEnv` explains why a saved key is not the live one
  * (env always wins).
  */
-import { keyStatuses, providerKeyList } from "@/src/server";
+import { isHostedMode, keyStatuses, providerKeyList } from "@/src/server";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
+	// Hosted mode: the operator's keys are not the visitor's inventory. Even
+	// the masked suffix + length must not leave the server. The UI hides the
+	// Providers section; an empty view keeps legacy clients degrading cleanly.
+	if (isHostedMode()) {
+		return Response.json(
+			{ keys: [], providers: [] },
+			{ headers: { "Cache-Control": "no-store" } },
+		);
+	}
 	return Response.json({ keys: keyStatuses(), providers: providerKeyList() });
 }

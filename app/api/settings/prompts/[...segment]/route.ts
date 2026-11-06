@@ -27,6 +27,7 @@
 
 import {
 	allSegmentPaths,
+	isHostedMode,
 	isValidSegmentPath,
 	promptOverrides,
 	readSettingsRecord,
@@ -43,6 +44,15 @@ function segmentPathFrom(segments: string[]): string | null {
 }
 
 export async function PUT(request: Request, ctx: { params: Promise<{ segment: string[] }> }) {
+	// Hosted beta: prompt overrides stay readable, never writable. A shared
+	// operator deployment should not let one visitor rewrite the teacher's
+	// instructions (and spend profile) for its own workspace.
+	if (isHostedMode()) {
+		return Response.json(
+			{ error: "Prompt overrides are read-only in the hosted version." },
+			{ status: 403 },
+		);
+	}
 	const { segment } = await ctx.params;
 	const path = segmentPathFrom(segment);
 	if (!path) return Response.json({ error: "invalid segment path" }, { status: 400 });
@@ -61,6 +71,12 @@ export async function PUT(request: Request, ctx: { params: Promise<{ segment: st
 }
 
 export async function DELETE(_request: Request, ctx: { params: Promise<{ segment: string[] }> }) {
+	if (isHostedMode()) {
+		return Response.json(
+			{ error: "Prompt overrides are read-only in the hosted version." },
+			{ status: 403 },
+		);
+	}
 	const { segment } = await ctx.params;
 	const path = segmentPathFrom(segment);
 	if (!path) return Response.json({ error: "invalid segment path" }, { status: 400 });
