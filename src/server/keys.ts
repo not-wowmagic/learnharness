@@ -198,6 +198,11 @@ export function keyValue(id: string): string | undefined {
  * no key at all: nothing to gate, present by definition. */
 export function providerKeyPresent(provider: string): boolean {
 	if (provider === CUSTOM_PROVIDER.id) return customProviderAvailable();
+	// The hosted operator provider reads this key directly (the built-in
+	// pi-ai row's catalog env var is OPENCODE_API_KEY; accept either).
+	if (provider === "opencode-go") {
+		return keyValue("OPENCODE_GO_API_KEY") !== undefined || keyValue("OPENCODE_API_KEY") !== undefined;
+	}
 	// Explicit opt-in + installation only, never authentication readiness.
 	// Consulted at admission, not inside already-running agent loops.
 	if (provider === CLAUDE_CODE_PROVIDER) return claudeCodeAvailable();

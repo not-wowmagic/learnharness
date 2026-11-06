@@ -23,6 +23,7 @@ const { HOSTED_PROVIDER_ID, piModels } = await import("../src/agent/models.ts");
 const { withHostedModelPins } = await import("../src/core/hosted.ts");
 const { resolveSettings } = await import("../src/core/settings-resolution.ts");
 const { modelCatalog } = await import("../src/server/model-catalog.ts");
+const { providerKeyPresent } = await import("../src/server/keys.ts");
 
 after(() => {
 	fs.rmSync(dataRoot, { recursive: true, force: true });
@@ -47,9 +48,12 @@ describe("OpenCode Go operator provider", () => {
 		}
 	});
 
-	it("appears as a keyed provider in the model catalog", () => {
+	it("appears once, keyed, and clears the key-presence gate", () => {
 		const catalog = modelCatalog();
-		assert.ok(catalog.providers.some((p) => p.id === HOSTED_PROVIDER_ID && p.keyPresent));
+		const rows = catalog.providers.filter((p) => p.id === HOSTED_PROVIDER_ID);
+		assert.equal(rows.length, 1);
+		assert.equal(rows[0]?.keyPresent, true);
 		assert.ok(catalog.models.some((m) => m.provider === HOSTED_PROVIDER_ID && m.id === "deepseek-v4.1-flash"));
+		assert.equal(providerKeyPresent(HOSTED_PROVIDER_ID), true);
 	});
 });

@@ -148,16 +148,18 @@ export function catalogSlots(): SlotPins {
  *  saving a key immediately federates the provider into the picker. */
 export function catalogProviders(): CatalogProvider[] {
 	piModels();
-	return AUTH_PROVIDER_KEYS.map((p) => ({
+	const hosted = piModels().getProvider(HOSTED_PROVIDER_ID) !== undefined;
+	const rows = AUTH_PROVIDER_KEYS.map((p) => ({
 		id: p.id,
 		envVar: p.envVar,
-		keyPresent: keyValue(p.envVar) !== undefined,
-	})).concat([
-		// The operator's hosted provider, when configured (key present by
-		// construction — the provider only registers with a key).
-		...(piModels().getProvider(HOSTED_PROVIDER_ID)
-			? [{ id: HOSTED_PROVIDER_ID, envVar: "OPENCODE_GO_API_KEY", keyPresent: true }]
-			: []),
+		// The operator provider registers only with a live key, and its
+		// key may ride OPENCODE_GO_API_KEY instead of the catalog's var.
+		keyPresent: hosted && p.id === HOSTED_PROVIDER_ID ? true : keyValue(p.envVar) !== undefined,
+	}));
+	if (hosted && !rows.some((p) => p.id === HOSTED_PROVIDER_ID)) {
+		rows.push({ id: HOSTED_PROVIDER_ID, envVar: "OPENCODE_GO_API_KEY", keyPresent: true });
+	}
+	return rows.concat([
 		{ id: "chatgpt", envVar: "", keyPresent: chatGPTConnected() },
 		{ id: CLAUDE_CODE_PROVIDER, envVar: "", keyPresent: claudeCodeAvailable() },
 		...NATIVE_SUBSCRIPTIONS.map((p) => ({ id: p.logicalId, envVar: "", keyPresent: nativeSubscriptionConnected(p.providerId) })),
