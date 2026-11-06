@@ -18,8 +18,14 @@ import {
  * workspace (cookie minted on first contact, id + signature forwarded to the
  * server-side wrapper). */
 export function proxy(request: NextRequest) {
-	// Container health checks must not mint a workspace per probe.
-	if (request.nextUrl.pathname === "/api/health") return NextResponse.next();
+	// Container health checks and the static privacy page must not mint a
+	// workspace per probe.
+	if (
+		request.nextUrl.pathname === "/api/health" ||
+		request.nextUrl.pathname === "/privacy"
+	) {
+		return NextResponse.next();
+	}
 	const api = request.nextUrl.pathname.startsWith("/api/");
 	if (api && !desktopAPIAuthorized(request.headers)) {
 		return NextResponse.json(

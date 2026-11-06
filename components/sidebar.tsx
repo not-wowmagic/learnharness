@@ -22,6 +22,7 @@ import { useServerEvent, useServerResync } from "@/components/server-events";
 import type { ChatListItem } from "@/src/core";
 import { kbdEventForAction } from "@/src/core";
 import { notifySettingsSaved } from "@/components/settings-signal";
+import { HOSTED } from "@/lib/hosted";
 
 /**
  * Toggleable sidebar — NOT a modal drawer: no backdrop, no focus theft. It
@@ -863,6 +864,24 @@ function SessionsSidebar() {
 								Settings
 							</button>
 						</Hint>
+						{HOSTED && (
+							<div className="mt-2 flex items-center gap-1.5 px-2 text-[10px] text-muted-foreground/60">
+								<a
+									href={process.env.NEXT_PUBLIC_SOURCE_URL ?? "https://github.com/not-wowmagic/learnharness/tree/hosted-web"}
+									target="_blank"
+									rel="noreferrer"
+									className="hover:text-foreground"
+								>
+									Source
+								</a>
+								<span aria-hidden>·</span>
+								<a href="/privacy" className="hover:text-foreground">
+									Privacy
+								</a>
+								<span aria-hidden>·</span>
+								<span>AGPL-3.0</span>
+							</div>
+						)}
 					</div>
 				</div>
 
