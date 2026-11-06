@@ -1,0 +1,62 @@
+# Render Blueprint — hosted LearnHarness (free tier).
+#
+# WARNING: Render free services have an EPHEMERAL filesystem. Chats and the
+# knowledge graph are lost on redeploy / restart / spin-down. For persistence,
+# use a paid instance + a disk mounted at /data, or a host with a real volume.
+#
+# Deploy: Render Dashboard -> New -> Blueprint -> this repo -> branch
+# `hosted-web`. Set OPENROUTER_API_KEY when prompted.
+
+services:
+  - type: web
+    name: learnharness
+    runtime: docker
+    plan: free
+    region: singapore
+    branch: hosted-web
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: LH_HOSTED
+        value: "1"
+      - key: LH_WORKSPACE_SECRET
+        generateValue: true
+      - key: LH_DATA_DIR
+        value: /data
+      # Render free is 512 MB; keep one or two turns at a time.
+      - key: LH_HOSTED_ACTIVE_TURNS
+        value: "2"
+      - key: LH_HOSTED_TURNS_PER_HOUR
+        value: "20"
+      - key: LH_HOSTED_TURNS_PER_DAY
+        value: "100"
+      - key: LH_HOSTED_TURNS_PER_IP_HOUR
+        value: "60"
+      - key: LH_HOSTED_WORKSPACE_DAILY_USD
+        value: "2"
+      - key: LH_HOSTED_GLOBAL_DAILY_USD
+        value: "20"
+      - key: LH_HOSTED_MAX_SESSIONS
+        value: "50"
+      - key: LH_HOSTED_WORKSPACE_DISK_MB
+        value: "250"
+      # Operator model pins. Change if you use a different provider.
+      - key: LH_HOSTED_MODEL_STRONG
+        value: openrouter:anthropic/claude-sonnet-4.5
+      - key: LH_HOSTED_MODEL_CHEAP
+        value: openrouter:google/gemini-2.5-flash
+      - key: LH_HOSTED_MODEL_VISION
+        value: openrouter:google/gemini-2.5-flash
+      # Prompted in the Render dashboard; never committed.
+      - key: OPENROUTER_API_KEY
+        sync: false
+      # Optional accounts: add the Supabase values after the project is awake.
+      # NEXT_PUBLIC_* must be present at BUILD time (public values only).
+      # - key: NEXT_PUBLIC_SUPABASE_URL
+      #   sync: false
+      # - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
+      #   sync: false
+      # - key: SUPABASE_SERVICE_ROLE_KEY
+      #   sync: false
