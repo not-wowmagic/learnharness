@@ -259,6 +259,15 @@ Supabase project creation and env vars are manual setup steps.
 - **Demo disabled** in hosted mode (server-side Chromium is the largest
   SSRF/compute surface); the Agent UI hides its toggle and the settings
   overlay forces it off.
+- **Role overrides stripped**: `agent.models` is emptied by the hosted
+  overlay, so background roles cannot be pointed at an unapproved model.
+- **Import/extraction budgets**: notes imports and manual coverage
+  extraction have their own per-workspace/IP hourly limits, so they cannot
+  bypass the chat-turn budget.
+- **Security headers**: `X-Frame-Options: DENY`, `X-Content-Type-Options:
+  nosniff`, `Referrer-Policy`, HSTS, a partial CSP (`frame-ancestors`,
+  `object-src`, `base-uri`, `form-action`), and a hosted-only
+  `Permissions-Policy` (camera/microphone/geolocation off).
 - Bot protection at the edge: put the domain behind Cloudflare and enable a
   Managed Challenge / Turnstile rule. App-level Turnstile verification is
   deferred; the turn/IP budgets are the in-app backstop.
